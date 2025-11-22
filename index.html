@@ -232,6 +232,12 @@
           <div class="card-extra muted" id="summaryProjectsExtra">filtered by region</div>
         </div>
       </div>
+      <div style="margin-bottom:10px;">
+  <select id="projectSelector">
+    <option value="">Select project…</option>
+  </select>
+</div>
+
       <div class="placeholder">
         Later: quick alerts like <strong>“PM overbooked in IT Q2 2026”</strong>, etc.
       </div>
@@ -333,11 +339,13 @@
   let projects = [];
 
   async function loadData(){
-    const [rolesRes, peopleRes, projectsRes] = await Promise.all([
-      supabase.from("roles_capacity").select("*").order("department"),
-      supabase.from("people").select("*"),
-      supabase.from("projects").select("*")
-    ]);
+    const [rolesRes, peopleRes, projectsRes, stdRes] = await Promise.all([
+  supabase.from("roles_capacity").select("*").order("department"),
+  supabase.from("people").select("*"),
+  supabase.from("projects").select("*"),
+  supabase.from("project_role_standard").select("*").order("role_name")
+]);
+
 
     if(rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
     if(peopleRes.error)  console.error("people error", peopleRes.error);
@@ -346,12 +354,22 @@
     roles    = rolesRes.data  || [];
     people   = peopleRes.data || [];
     projects = projectsRes.data || [];
+    projectRoleStandard = stdRes.data || [];   // 👈 ESTA ES LA LÍNEA
 
     updateRegionFilter();
     renderSummary();
     renderRolesTable();
     renderProjectsTable();
+    updateProjectSelector();
+
   }
+function updateProjectSelector(){
+  const selector = document.getElementById("projectSelector");
+  selector.innerHTML = `<option value="">Select project…</option>`;
+  for(const p of projects){
+    selector.innerHTML += `<option value="${p.id}">${p.project_code} — ${p.project_name}</option>`;
+  }
+}
 
   function updateRegionFilter(){
     // fill region dropdown from projects regions
@@ -359,6 +377,70 @@
     regionFilter.innerHTML = '<option value="all">All regions</option>' +
       regions.map(r => `<option value="${r}">${r}</option>`).join("");
   }
+document.getElementById("projectSelector").addEventListener("change", async (e) => {
+  const projectId = e.target.value;
+  if(!projectId){
+    detailPlaceholder.innerHTML = "Select a project to view roles.";
+    return;
+  }
+  await loadProjectRoles(projectId);
+});
+async function loadProjectRoles(projectId){
+  const { data: req, error } = await supabase
+    .from("project_role_requirements")
+    .select("*")
+    .eq("project_id", projectId);
+
+  if(error){
+    detailPlaceholder.innerHTML = "Error loading project roles.";
+    return;
+  }
+
+  renderProjectOrgChart(req);
+}
+function renderProjectOrgChart(requirements){
+  let html = `<table style="width:100%;font-size:.78rem;">
+    <thead>
+      <tr>
+        <th>Role</th>
+        <th>Slots</th>
+        <th>People assigned</th>
+        <th>Edit</th>
+      </tr>
+    </thead><tbody>`;
+
+  for(const row of requirements){
+    html += `
+      <tr>
+        <td>${row.role_name}</td>
+        <td>${row.slots}</td>
+        <td>(soon: assignments)</td>
+        <td><button onclick="editSlots('${row.id}', ${row.slots})">Edit</button></td>
+      </tr>
+    `;
+  }
+
+  html += "</tbody></table>";
+
+  detailPlaceholder.innerHTML = html;
+}
+async function editSlots(reqId, current){
+  const newVal = prompt("New number of slots:", current);
+  if(newVal === null) return;
+  
+  const { error } = await supabase
+    .from("project_role_requirements")
+    .update({ slots: Number(newVal) })
+    .eq("id", reqId);
+
+  if(error){
+    alert("Error saving.");
+    return;
+  }
+
+  const projectId = document.getElementById("projectSelector").value;
+  loadProjectRoles(projectId);
+}
 
   function renderSummary(){
     summaryRoles.textContent    = roles.length;
