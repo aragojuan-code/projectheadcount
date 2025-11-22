@@ -337,8 +337,9 @@
   let roles = [];
   let people = [];
   let projects = [];
-  let projectRoleStandard = [];
-
+  let projectRoleStandard = []; // filas de project_role_standard
+  let projectRoleRequirements = [];    // filas de project_role_requirements
+  let selectedProjectId = null;        // proyecto seleccionado ahora mismo
   async function loadData(){
     const [rolesRes, peopleRes, projectsRes, stdRes] = await Promise.all([
   supabase.from("roles_capacity").select("*").order("department"),
@@ -356,13 +357,15 @@
     people   = peopleRes.data || [];
     projects = projectsRes.data || [];
     projectRoleStandard = stdRes.data || [];   // 👈 ESTA ES LA LÍNEA
-
+    projectRoleRequirements = reqRes.data || [];
     updateRegionFilter();
     renderSummary();
     renderRolesTable();
     renderProjectsTable();
     updateProjectSelector();
-
+ if (selectedProjectId) {
+    renderProjectRolesDetail(selectedProjectId);
+  }
   }
 function updateProjectSelector(){
   const selector = document.getElementById("projectSelector");
@@ -495,25 +498,174 @@ async function editSlots(reqId, current){
   }
 
   function renderProjectsTable(){
-    const rows = filteredProjects();
-    projectsTableBody.innerHTML = "";
-    for(const p of rows){
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${p.project_code || ""}</td>
-        <td>${p.project_name || ""}</td>
-        <td>${p.region || ""}</td>
-        <td>${p.country || ""}</td>
-        <td>${p.technology || ""}</td>
-        <td>${p.capacity_mw ?? ""}</td>
-        <td><span class="pill"><strong>${p.status || ""}</strong></span></td>
-        <td>${p.construction_start_date || ""}</td>
-        <td>${p.pac_date || ""}</td>
-      `;
-      projectsTableBody.appendChild(tr);
-    }
-    summaryProjects.textContent = rows.length;
+  const rows = filteredProjects();
+  projectsTableBody.innerHTML = "";
+  for(const p of rows){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.project_code || ""}</td>
+      <td>${p.project_name || ""}</td>
+      <td>${p.region || ""}</td>
+      <td>${p.country || ""}</td>
+      <td>${p.technology || ""}</td>
+      <td>${p.capacity_mw ?? ""}</td>
+      <td><span class="pill"><strong>${p.status || ""}</strong></span></td>
+      <td>${p.construction_start_date || ""}</td>
+      <td>${p.pac_date || ""}</td>
+    `;
+
+    // 💡 al hacer clic en una fila → mostramos detalle de ese proyecto
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", () => {
+      selectedProjectId = p.id;
+      renderProjectRolesDetail(p.id);
+    });
+
+    projectsTableBody.appendChild(tr);
   }
+  summaryProjects.textContent = rows.length;
+}
+
+function renderProjectRolesDetail(projectId) {
+  const detail = document.getElementById("detailPlaceholder");
+  const project = projects.find(p => p.id === projectId);
+  if (!project) {
+    detail.innerHTML = "<div class='placeholder'>Project not found.</div>";
+    return;
+  }
+
+  // 1. Miramos si este proyecto tiene requisitos específicos
+  const specificReqs = projectRoleRequirements.filter(r => r.project_id === projectId);
+
+  // 2. Si no hay nada, usamos el estándar (project_role_standard)
+  const rowsSource = specificReqs.length > 0 ? specificReqs : projectRoleStandard;
+
+  // 3. Pintamos la tabla
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div>
+        <div class="pill">Project: <strong>${project.project_code || ""}</strong> – ${project.project_name || ""}</div>
+      </div>
+      <button id="cloneStandardBtn" class="primary" style="font-size:.75rem;">Use standard for this project</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:.8rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:4px;">Role</th>
+          <th style="text-align:left;padding:4px;">Slots</th>
+          <th style="text-align:left;padding:4px;">People assigned</th>
+          <th style="text-align:left;padding:4px;">Edit</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (const row of rowsSource) {
+    const roleName = row.role_name;
+    const slots    = row.slots ?? row.default_slots ?? 1;
+
+    html += `
+      <tr data-role="${roleName}">
+        <td style="padding:4px;">${roleName}</td>
+        <td style="padding:4px;">${slots}</td>
+        <td style="padding:4px;" class="muted">(soon: assignments)</td>
+        <td style="padding:4px;">
+          <button class="pill edit-slot-btn" data-role="${roleName}" style="font-size:.7rem;">Edit</button>
+        </td>
+      </tr>
+    `;
+  }
+
+  html += `
+      </tbody>
+    </table>
+  `;
+
+  detail.innerHTML = html;
+
+  // Handler para "Usar estándar" → clona project_role_standard en project_role_requirements
+  const cloneBtn = document.getElementById("cloneStandardBtn");
+  if (cloneBtn) {
+    cloneBtn.addEventListener("click", async () => {
+      if (!confirm("Overwrite role slots for this project with the standard template?")) return;
+
+      const payload = projectRoleStandard.map(row => ({
+        project_id: projectId,
+        role_name: row.role_name,
+        slots: row.default_slots ?? row.slots ?? 1
+      }));
+
+      const { error } = await supabase.from("project_role_requirements").upsert(payload, {
+        onConflict: "project_id,role_name"
+      });
+
+      if (error) {
+        console.error("Error cloning standard", error);
+        alert("Error cloning standard: " + error.message);
+        return;
+      }
+
+      // Recargamos requisitos desde la DB
+      const { data, error: reqErr } = await supabase
+        .from("project_role_requirements")
+        .select("*")
+        .eq("project_id", projectId);
+
+      if (!reqErr && data) {
+        // actualizamos cache global
+        projectRoleRequirements = projectRoleRequirements
+          .filter(r => r.project_id !== projectId)
+          .concat(data);
+      }
+
+      renderProjectRolesDetail(projectId);
+    });
+  }
+
+  // Handler para editar slots (por ahora con prompt sencillo)
+  detail.querySelectorAll(".edit-slot-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const roleName = btn.getAttribute("data-role");
+      const currentRow = rowsSource.find(r => r.role_name === roleName);
+      const currentSlots = currentRow.slots ?? currentRow.default_slots ?? 1;
+
+      const newValueStr = prompt(`Slots for ${roleName}:`, String(currentSlots));
+      if (newValueStr === null) return; // cancelado
+
+      const newSlots = parseInt(newValueStr, 10);
+      if (Number.isNaN(newSlots) || newSlots <= 0) {
+        alert("Please enter a positive integer.");
+        return;
+      }
+
+      // upsert en project_role_requirements para este proyecto + role
+      const { error } = await supabase.from("project_role_requirements").upsert({
+        project_id: projectId,
+        role_name: roleName,
+        slots: newSlots
+      }, {
+        onConflict: "project_id,role_name"
+      });
+
+      if (error) {
+        console.error("Error updating slots", error);
+        alert("Error updating slots: " + error.message);
+        return;
+      }
+
+      // actualizamos cache local
+      const existing = projectRoleRequirements.find(r => r.project_id === projectId && r.role_name === roleName);
+      if (existing) {
+        existing.slots = newSlots;
+      } else {
+        projectRoleRequirements.push({ project_id: projectId, role_name: roleName, slots: newSlots });
+      }
+
+      // refrescamos el panel
+      renderProjectRolesDetail(projectId);
+    });
+  });
+}
 
   regionFilter.addEventListener("change", () => {
     renderSummary();
