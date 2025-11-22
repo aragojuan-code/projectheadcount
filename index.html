@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Project Headcount – Command Center</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#050816;
+      --panel:#0b1220;
+      --accent:#38bdf8;
+      --accent-soft:rgba(56,189,248,.15);
+      --ink:#e5e7eb;
+      --muted:#9ca3af;
+      --danger:#f97373;
+      --radius:14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:radial-gradient(circle at top,#1f2937 0,#020617 55%);
+      color:var(--ink);
+      min-height:100vh;
+      padding:16px;
+    }
+    .app{
+      max-width:1400px;
+      margin:0 auto;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+    header{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .title-block{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    h1{
+      font-size:1.4rem;
+      letter-spacing:.03em;
+    }
+    .subtitle{
+      font-size:.85rem;
+      color:var(--muted);
+    }
+    .filters{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    select,input,button{
+      background:rgba(15,23,42,.9);
+      color:var(--ink);
+      border:1px solid rgba(148,163,184,.6);
+      border-radius:999px;
+      padding:6px 12px;
+      font-size:.8rem;
+      outline:none;
+    }
+    button.primary{
+      border-color:var(--accent);
+      background:var(--accent-soft);
+      cursor:pointer;
+    }
+    main{
+      display:grid;
+      grid-template-columns:2fr 3fr;
+      grid-template-rows:auto auto;
+      gap:16px;
+    }
+    @media (max-width:980px){
+      main{
+        grid-template-columns:1fr;
+      }
+    }
+    .panel{
+      background:rgba(15,23,42,.9);
+      border-radius:var(--radius);
+      border:1px solid rgba(148,163,184,.4);
+      padding:12px 14px;
+      box-shadow:0 18px 40px rgba(0,0,0,.55);
+    }
+    .panel h2{
+      font-size:.95rem;
+      margin-bottom:8px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .panel h2 span.label{
+      font-size:.75rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:var(--muted);
+    }
+    .summary-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:10px;
+    }
+    @media (max-width:700px){
+      .summary-grid{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+    }
+    .card{
+      background:radial-gradient(circle at top,var(--accent-soft),rgba(15,23,42,.95));
+      border-radius:var(--radius);
+      padding:10px 12px;
+      border:1px solid rgba(148,163,184,.4);
+    }
+    .card-label{
+      font-size:.7rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:var(--muted);
+    }
+    .card-value{
+      font-size:1.3rem;
+      margin-top:4px;
+    }
+    .card-extra{
+      font-size:.75rem;
+      margin-top:2px;
+      color:var(--muted);
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:.78rem;
+    }
+    th,td{
+      padding:6px 4px;
+      text-align:left;
+      border-bottom:1px solid rgba(31,41,55,.8);
+    }
+    th{
+      font-size:.72rem;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      color:var(--muted);
+    }
+    tbody tr:nth-child(even){
+      background-color:rgba(15,23,42,.7);
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:.7rem;
+      border:1px solid rgba(148,163,184,.5);
+      color:var(--muted);
+    }
+    .tag.green{
+      border-color:#4ade80;
+      color:#bbf7d0;
+    }
+    .tag.red{
+      border-color:var(--danger);
+      color:#fecaca;
+    }
+    .muted{
+      color:var(--muted);
+    }
+    .pill{
+      padding:2px 8px;
+      border-radius:999px;
+      background:rgba(15,23,42,.9);
+      border:1px solid rgba(148,163,184,.4);
+      font-size:.7rem;
+    }
+    .pill strong{
+      color:var(--accent);
+    }
+    .placeholder{
+      font-size:.8rem;
+      color:var(--muted);
+      padding:8px 2px 2px;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title-block">
+      <h1>Project Headcount – Command Center</h1>
+      <div class="subtitle">Supabase · Roles · People · Projects · 2025–2026</div>
+    </div>
+    <div class="filters">
+      <select id="regionFilter">
+        <option value="all">All regions</option>
+      </select>
+      <select id="viewMode">
+        <option value="capacity">Capacity view</option>
+        <option value="projects">Projects view</option>
+      </select>
+      <button class="primary" id="refreshBtn">Refresh data</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- SUMMARY -->
+    <section class="panel">
+      <h2>
+        Overview
+        <span class="label">Snapshot</span>
+      </h2>
+      <div class="summary-grid">
+        <div class="card">
+          <div class="card-label">Roles</div>
+          <div class="card-value" id="summaryRoles">–</div>
+          <div class="card-extra muted" id="summaryRolesExtra">from roles_capacity</div>
+        </div>
+        <div class="card">
+          <div class="card-label">People</div>
+          <div class="card-value" id="summaryPeople">–</div>
+          <div class="card-extra muted" id="summaryPeopleExtra">internal + OE</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Projects</div>
+          <div class="card-value" id="summaryProjects">–</div>
+          <div class="card-extra muted" id="summaryProjectsExtra">filtered by region</div>
+        </div>
+      </div>
+      <div class="placeholder">
+        Later: quick alerts like <strong>“PM overbooked in IT Q2 2026”</strong>, etc.
+      </div>
+    </section>
+
+    <!-- ROLES / CAPACITY TABLE -->
+    <section class="panel">
+      <h2>
+        Roles capacity by region
+        <span class="label"><span id="regionLabel">All regions</span></span>
+      </h2>
+      <div style="max-height:340px;overflow:auto;">
+        <table id="rolesTable">
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Dept</th>
+              <th>Max alloc</th>
+              <th>Internal FTE</th>
+              <th>OE FTE</th>
+              <th>Total FTE</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PROJECTS TABLE -->
+    <section class="panel">
+      <h2>
+        Projects
+        <span class="label">2025–2026 window</span>
+      </h2>
+      <div style="max-height:340px;overflow:auto;">
+        <table id="projectsTable">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Region</th>
+              <th>Country</th>
+              <th>Tech</th>
+              <th>Capacity MW</th>
+              <th>Status</th>
+              <th>Start constr.</th>
+              <th>PAC</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="placeholder">
+        Later here: mini-Gantt, filters by year/quarter, click → open org chart view.
+      </div>
+    </section>
+
+    <!-- DETAIL PLACEHOLDER (org chart / heatmap etc.) -->
+    <section class="panel">
+      <h2>
+        Detail panel
+        <span class="label">Role / Project focus</span>
+      </h2>
+      <div class="placeholder" id="detailPlaceholder">
+        Select a project or role to show detailed view (org chart, assignments, etc.).
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Supabase JS -->
+<script type="module">
+  // TODO: replace with your own Supabase URL and anon key
+  const SUPABASE_URL = "https://YOUR-PROJECT.ref.supabase.co";
+  const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
+
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const regionFilter = document.getElementById("regionFilter");
+  const regionLabel  = document.getElementById("regionLabel");
+  const viewMode     = document.getElementById("viewMode");
+  const refreshBtn   = document.getElementById("refreshBtn");
+
+  const rolesTableBody    = document.querySelector("#rolesTable tbody");
+  const projectsTableBody = document.querySelector("#projectsTable tbody");
+
+  const summaryRoles    = document.getElementById("summaryRoles");
+  const summaryPeople   = document.getElementById("summaryPeople");
+  const summaryProjects = document.getElementById("summaryProjects");
+
+  let roles = [];
+  let people = [];
+  let projects = [];
+
+  async function loadData(){
+    const [rolesRes, peopleRes, projectsRes] = await Promise.all([
+      supabase.from("roles_capacity").select("*").order("department"),
+      supabase.from("people").select("*"),
+      supabase.from("projects").select("*")
+    ]);
+
+    if(rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
+    if(peopleRes.error)  console.error("people error", peopleRes.error);
+    if(projectsRes.error)console.error("projects error", projectsRes.error);
+
+    roles    = rolesRes.data  || [];
+    people   = peopleRes.data || [];
+    projects = projectsRes.data || [];
+
+    updateRegionFilter();
+    renderSummary();
+    renderRolesTable();
+    renderProjectsTable();
+  }
+
+  function updateRegionFilter(){
+    // fill region dropdown from projects regions
+    const regions = Array.from(new Set(projects.map(p => p.region).filter(Boolean)));
+    regionFilter.innerHTML = '<option value="all">All regions</option>' +
+      regions.map(r => `<option value="${r}">${r}</option>`).join("");
+  }
+
+  function renderSummary(){
+    summaryRoles.textContent    = roles.length;
+    summaryPeople.textContent   = people.length;
+    summaryProjects.textContent = filteredProjects().length;
+  }
+
+  function filteredProjects(){
+    const r = regionFilter.value;
+    if(r === "all") return projects;
+    return projects.filter(p => p.region === r);
+  }
+
+  function filteredPeople(){
+    const r = regionFilter.value;
+    if(r === "all") return people;
+    return people.filter(p => p.region === r);
+  }
+
+  function renderRolesTable(){
+    const regionPeople = filteredPeople();
+
+    // aggregate FTE by role and type
+    const agg = {};
+    for(const person of regionPeople){
+      const key = person.role_name;
+      if(!agg[key]) agg[key] = { internal:0, oe:0, external:0 };
+      const type = person.type || "internal";
+      agg[key][type] += Number(person.fte_base || 0);
+    }
+
+    rolesTableBody.innerHTML = "";
+    for(const role of roles){
+      const rowAgg = agg[role.role_name] || { internal:0, oe:0, external:0 };
+      const internalFte = rowAgg.internal.toFixed(2);
+      const oeFte       = rowAgg.oe.toFixed(2);
+      const totalFte    = (rowAgg.internal + rowAgg.oe + rowAgg.external).toFixed(2);
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${role.role_name}</td>
+        <td class="muted">${role.department}</td>
+        <td>${Number(role.max_project_allocation || 0).toFixed(2)}</td>
+        <td>${internalFte}</td>
+        <td>${oeFte}</td>
+        <td>${totalFte}</td>
+      `;
+      rolesTableBody.appendChild(tr);
+    }
+    regionLabel.textContent = regionFilter.value === "all" ? "All regions" : regionFilter.value;
+  }
+
+  function renderProjectsTable(){
+    const rows = filteredProjects();
+    projectsTableBody.innerHTML = "";
+    for(const p of rows){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${p.project_code || ""}</td>
+        <td>${p.project_name || ""}</td>
+        <td>${p.region || ""}</td>
+        <td>${p.country || ""}</td>
+        <td>${p.technology || ""}</td>
+        <td>${p.capacity_mw ?? ""}</td>
+        <td><span class="pill"><strong>${p.status || ""}</strong></span></td>
+        <td>${p.construction_start_date || ""}</td>
+        <td>${p.pac_date || ""}</td>
+      `;
+      projectsTableBody.appendChild(tr);
+    }
+    summaryProjects.textContent = rows.length;
+  }
+
+  regionFilter.addEventListener("change", () => {
+    renderSummary();
+    renderRolesTable();
+    renderProjectsTable();
+  });
+
+  refreshBtn.addEventListener("click", loadData);
+
+  // initial load
+  loadData();
+</script>
+</body>
+</html>
