@@ -74,7 +74,7 @@
     main{
       display:grid;
       grid-template-columns:2fr 3fr;
-      grid-template-rows:auto auto;
+      grid-template-rows:auto auto auto;
       gap:16px;
     }
     @media (max-width:980px){
@@ -148,26 +148,10 @@
       text-transform:uppercase;
       letter-spacing:.06em;
       color:var(--muted);
+      white-space:nowrap;
     }
     tbody tr:nth-child(even){
       background-color:rgba(15,23,42,.7);
-    }
-    .tag{
-      display:inline-flex;
-      align-items:center;
-      padding:2px 8px;
-      border-radius:999px;
-      font-size:.7rem;
-      border:1px solid rgba(148,163,184,.5);
-      color:var(--muted);
-    }
-    .tag.green{
-      border-color:#4ade80;
-      color:#bbf7d0;
-    }
-    .tag.red{
-      border-color:var(--danger);
-      color:#fecaca;
     }
     .muted{
       color:var(--muted);
@@ -187,34 +171,6 @@
       color:var(--muted);
       padding:8px 2px 2px;
     }
-    .subline{
-      font-size:.75rem;
-      color:var(--muted);
-      margin-top:4px;
-    }
-    .flex-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px;
-      align-items:center;
-    }
-    .inline-badge{
-      display:inline-flex;
-      align-items:center;
-      gap:4px;
-      padding:2px 8px;
-      border-radius:999px;
-      border:1px solid rgba(148,163,184,.4);
-      font-size:.7rem;
-    }
-    .inline-badge strong{
-      color:var(--accent);
-    }
-    .small{
-      font-size:.75rem;
-    }
-    .mt8{margin-top:8px;}
-    .mt4{margin-top:4px;}
   </style>
 </head>
 <body>
@@ -228,16 +184,18 @@
       <select id="regionFilter">
         <option value="all">All regions</option>
       </select>
-      <select id="viewMode">
-        <option value="capacity">Capacity view</option>
-        <option value="projects">Projects view</option>
+      <select id="yearFilter">
+        <option value="all">All years</option>
+      </select>
+      <select id="projectFilter">
+        <option value="all">All projects</option>
       </select>
       <button class="primary" id="refreshBtn">Refresh data</button>
     </div>
   </header>
 
   <main>
-    <!-- SUMMARY + PERSON SELECTOR -->
+    <!-- SUMMARY -->
     <section class="panel">
       <h2>
         Overview
@@ -253,17 +211,11 @@
           <div class="card-label">People</div>
           <div class="card-value" id="summaryPeople">–</div>
           <div class="card-extra muted" id="summaryPeopleExtra">internal + OE</div>
-          <div class="subline">
-            Person focus: 
-            <select id="personSelect" class="small" style="margin-top:4px;width:100%;">
-              <option value="">Select person…</option>
-            </select>
-          </div>
         </div>
         <div class="card">
           <div class="card-label">Projects</div>
           <div class="card-value" id="summaryProjects">–</div>
-          <div class="card-extra muted" id="summaryProjectsExtra">filtered by region</div>
+          <div class="card-extra muted" id="summaryProjectsExtra">filtered by region/year/project</div>
         </div>
       </div>
       <div class="placeholder">
@@ -327,67 +279,36 @@
       </div>
     </section>
 
-    <!-- DETAIL PANEL: PERSON FOCUS (ASSIGNMENTS) -->
-    <section class="panel">
+    <!-- MONTHLY DEMAND PANEL -->
+    <section class="panel" style="grid-column:1 / -1;">
       <h2>
-        Detail panel
-        <span class="label">Person / assignments</span>
+        Monthly demand – key roles
+        <span class="label" id="demandLabel">All years · All regions</span>
       </h2>
-      <div id="detailPlaceholder">
-        <div class="placeholder">
-          Select a person in the PEOPLE card to see and edit their project assignments.
-        </div>
+      <div style="max-height:340px;overflow:auto;">
+        <table id="demandTable">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>#Projects</th>
+              <th>Total MW</th>
+              <th>#Regions</th>
+              <th>PD</th>
+              <th>PM</th>
+              <th>Permitting Mgr</th>
+              <th>Site Mgr</th>
+              <th>Quality Mgr</th>
+              <th>H&amp;S Mgr</th>
+              <th>Project Eng</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
       </div>
-      <div id="personDetail" style="display:none;">
-        <div id="personInfo" class="small"></div>
-
-        <div class="mt8">
-          <div class="inline-badge"><strong>Current assignments</strong></div>
-          <table class="mt4">
-            <thead>
-              <tr>
-                <th class="small">Project</th>
-                <th class="small">Region</th>
-                <th class="small">Stage</th>
-                <th class="small">FTE</th>
-              </tr>
-            </thead>
-            <tbody id="personAssignmentsBody">
-            </tbody>
-          </table>
-        </div>
-
-        <div class="mt8">
-          <div class="inline-badge"><strong>Assign to project</strong></div>
-          <form id="assignForm" class="mt4">
-            <div class="flex-row">
-              <label class="small">
-                Project
-                <select id="assignProject" required>
-                  <option value="">Select…</option>
-                </select>
-              </label>
-              <label class="small">
-                Stage
-                <select id="assignStage" required>
-                  <option value="eng_perm">Eng & Perm</option>
-                  <option value="epc_proc">EPC Proc</option>
-                  <option value="epc_eng">EPC Eng</option>
-                  <option value="construction">Construction</option>
-                  <option value="commissioning">Commissioning</option>
-                </select>
-              </label>
-              <label class="small">
-                FTE
-                <input id="assignFte" type="number" min="0.05" max="2" step="0.05" value="1" required />
-              </label>
-              <button type="submit" class="primary small">Add</button>
-            </div>
-          </form>
-          <div class="subline">
-            This will create a record in <code>assignments</code> for this person / project / stage.
-          </div>
-        </div>
+      <div class="placeholder">
+        This table is computed from: project dates × role-stage demand matrix × slots per project (standard/overrides).
       </div>
     </section>
   </main>
@@ -395,107 +316,141 @@
 
 <!-- Supabase JS -->
 <script type="module">
+  // ⚠️ Cambia esto por tu URL y tu anon key
   const SUPABASE_URL = "https://ascfisqbwvkfdmcskslr.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_KLPwFBTL34aDaQJ7XIHBCA_K8San_bV";
 
   import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  const regionFilter = document.getElementById("regionFilter");
-  const regionLabel  = document.getElementById("regionLabel");
-  const viewMode     = document.getElementById("viewMode");
-  const refreshBtn   = document.getElementById("refreshBtn");
+  const regionFilter  = document.getElementById("regionFilter");
+  const yearFilter    = document.getElementById("yearFilter");
+  const projectFilter = document.getElementById("projectFilter");
+  const refreshBtn    = document.getElementById("refreshBtn");
 
-  const rolesTableBody    = document.querySelector("#rolesTable tbody");
-  const projectsTableBody = document.querySelector("#projectsTable tbody");
+  const regionLabel        = document.getElementById("regionLabel");
+  const demandLabel        = document.getElementById("demandLabel");
+  const rolesTableBody     = document.querySelector("#rolesTable tbody");
+  const projectsTableBody  = document.querySelector("#projectsTable tbody");
+  const demandTableBody    = document.querySelector("#demandTable tbody");
 
   const summaryRoles    = document.getElementById("summaryRoles");
   const summaryPeople   = document.getElementById("summaryPeople");
   const summaryProjects = document.getElementById("summaryProjects");
 
-  const personSelect        = document.getElementById("personSelect");
-  const detailPlaceholder   = document.getElementById("detailPlaceholder");
-  const personDetail        = document.getElementById("personDetail");
-  const personInfo          = document.getElementById("personInfo");
-  const personAssignmentsBody = document.getElementById("personAssignmentsBody");
-  const assignForm          = document.getElementById("assignForm");
-  const assignProject       = document.getElementById("assignProject");
-  const assignStage         = document.getElementById("assignStage");
-  const assignFte           = document.getElementById("assignFte");
-
   let roles = [];
   let people = [];
   let projects = [];
-  let assignments = [];
+  let projectRoleStandard = [];
+  let projectRoleRequirements = [];
+  let roleByName = {};
 
-  let selectedPersonId = null;
+  const KEY_ROLES = [
+    "PD",
+    "PM",
+    "Permitting Manager",
+    "Site Manager",
+    "Quality Manager",
+    "H&S Manager",
+    "Project Engineer"
+  ];
+
+  const STAGE_FIELD_MAP = {
+    eng_perm: "eng_perm_demand",
+    epc_proc: "epc_proc_demand",
+    epc_eng: "epc_eng_demand",
+    construction: "construction_demand",
+    commissioning: "commissioning_demand"
+  };
 
   async function loadData(){
-    const [rolesRes, peopleRes, projectsRes, assignmentsRes] = await Promise.all([
+    const [rolesRes, peopleRes, projectsRes, stdRes, reqRes] = await Promise.all([
       supabase.from("roles_capacity").select("*").order("department"),
       supabase.from("people").select("*"),
       supabase.from("projects").select("*"),
-      supabase.from("assignments").select("*")
+      supabase.from("project_role_standard").select("*"),
+      supabase.from("project_role_requirements").select("*")
     ]);
 
     if(rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
     if(peopleRes.error)  console.error("people error", peopleRes.error);
     if(projectsRes.error)console.error("projects error", projectsRes.error);
-    if(assignmentsRes.error)console.error("assignments error", assignmentsRes.error);
+    if(stdRes.error)     console.error("project_role_standard error", stdRes.error);
+    if(reqRes.error)     console.error("project_role_requirements error", reqRes.error);
 
-    roles       = rolesRes.data  || [];
-    people      = peopleRes.data || [];
-    projects    = projectsRes.data || [];
-    assignments = assignmentsRes.data || [];
+    roles    = rolesRes.data  || [];
+    people   = peopleRes.data || [];
+    projects = projectsRes.data || [];
+
+    projectRoleStandard      = stdRes.data || [];   // ← AQUÍ va projectRoleStandard = stdRes.data || [];
+    projectRoleRequirements  = reqRes.data || [];
+
+    roleByName = {};
+    for(const r of roles){
+      roleByName[r.role_name] = r;
+    }
 
     updateRegionFilter();
-    updatePersonSelect();
-    updateAssignProjectOptions();
-
+    updateYearFilter();
+    updateProjectFilter();
     renderSummary();
     renderRolesTable();
     renderProjectsTable();
-    renderPersonDetail(); // in case a person was already selected
+    renderDemandTable();
   }
 
   function updateRegionFilter(){
-    const regions = Array.from(new Set(projects.map(p => p.region).filter(Boolean)));
+    const regions = Array.from(new Set(projects.map(p => p.region).filter(Boolean))).sort();
     regionFilter.innerHTML = '<option value="all">All regions</option>' +
       regions.map(r => `<option value="${r}">${r}</option>`).join("");
   }
 
-  function updatePersonSelect(){
-    // order people by name
-    const sorted = [...people].sort((a,b) => (a.full_name || "").localeCompare(b.full_name || ""));
-    personSelect.innerHTML = '<option value="">Select person…</option>' +
-      sorted.map(p => {
-        const label = `${p.full_name} – ${p.role_name} (${p.region || "-"})`;
-        return `<option value="${p.id}">${label}</option>`;
-      }).join("");
-
-    if(selectedPersonId){
-      personSelect.value = selectedPersonId;
+  function updateYearFilter(){
+    const yearsSet = new Set();
+    const dateFields = [
+      "permitting_approval_date",
+      "tender_package_design_date",
+      "financing_signing_date",
+      "construction_start_date",
+      "mechanical_completion_date",
+      "pac_date"
+    ];
+    for(const p of projects){
+      for(const f of dateFields){
+        const d = toDate(p[f]);
+        if(d) yearsSet.add(d.getUTCFullYear());
+      }
     }
+    const years = Array.from(yearsSet).sort();
+    yearFilter.innerHTML = '<option value="all">All years</option>' +
+      years.map(y => `<option value="${y}">${y}</option>`).join("");
   }
 
-  function updateAssignProjectOptions(){
-    const region = regionFilter.value;
-    const list = region === "all" ? projects : projects.filter(p => p.region === region);
-    assignProject.innerHTML = '<option value="">Select…</option>' +
-      list.map(p => `<option value="${p.id}">${p.project_code || ""} – ${p.project_name}</option>`).join("");
+  function updateProjectFilter(){
+    const r = regionFilter.value;
+    const subset = (r === "all") ? projects : projects.filter(p => p.region === r);
+    projectFilter.innerHTML =
+      '<option value="all">All projects</option>' +
+      subset.map(p => `<option value="${p.id}">${p.project_code || p.project_name}</option>`).join("");
   }
 
   function renderSummary(){
-    summaryRoles.textContent    = roles.length;
-    summaryPeople.textContent   = people.length;
+    summaryRoles.textContent  = roles.length;
+    summaryPeople.textContent = people.length;
     summaryProjects.textContent = filteredProjects().length;
   }
 
   function filteredProjects(){
     const r = regionFilter.value;
-    if(r === "all") return projects;
-    return projects.filter(p => p.region === r);
+    const projId = projectFilter.value;
+    let out = projects;
+    if(r !== "all"){
+      out = out.filter(p => p.region === r);
+    }
+    if(projId !== "all"){
+      out = out.filter(p => p.id === projId);
+    }
+    return out;
   }
 
   function filteredPeople(){
@@ -557,112 +512,214 @@
     summaryProjects.textContent = rows.length;
   }
 
-  function renderPersonDetail(){
-    if(!selectedPersonId){
-      detailPlaceholder.style.display = "block";
-      personDetail.style.display = "none";
-      return;
-    }
-    const person = people.find(p => p.id === selectedPersonId);
-    if(!person){
-      detailPlaceholder.style.display = "block";
-      personDetail.style.display = "none";
-      return;
-    }
+  // ---------- DEMANDA MENSUAL ----------
 
-    detailPlaceholder.style.display = "none";
-    personDetail.style.display = "block";
-
-    personInfo.innerHTML = `
-      <div class="flex-row">
-        <div class="inline-badge"><strong>${person.full_name}</strong></div>
-        <div class="inline-badge small">${person.role_name} · ${person.department || "-"}</div>
-        <div class="inline-badge small">Region: <strong>${person.region || "-"}</strong></div>
-        <div class="inline-badge small">FTE base: <strong>${Number(person.fte_base || 0).toFixed(2)}</strong></div>
-        <div class="inline-badge small">Type: <strong>${person.type}</strong></div>
-      </div>
-    `;
-
-    // fill assignments table
-    const rows = assignments.filter(a => a.person_id === selectedPersonId);
-    personAssignmentsBody.innerHTML = "";
-    if(rows.length === 0){
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="4" class="muted small">No assignments yet.</td>`;
-      personAssignmentsBody.appendChild(tr);
-    }else{
-      for(const a of rows){
-        const project = projects.find(p => p.id === a.project_id);
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td class="small">${project ? (project.project_code || "") + " – " + project.project_name : a.project_id}</td>
-          <td class="small">${project ? (project.region || "") : ""}</td>
-          <td class="small">${a.stage}</td>
-          <td class="small">${Number(a.fte_on_project || 0).toFixed(2)}</td>
-        `;
-        personAssignmentsBody.appendChild(tr);
-      }
-    }
+  function toDate(v){
+    if(!v) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   }
 
-  // Event listeners
+  function getProjectStages(p){
+    const stages = [];
+    const pa  = toDate(p.permitting_approval_date);
+    const tpd = toDate(p.tender_package_design_date);
+    const fs  = toDate(p.financing_signing_date);
+    const cs  = toDate(p.construction_start_date);
+    const mc  = toDate(p.mechanical_completion_date);
+    const pac = toDate(p.pac_date);
+
+    const pushStage = (start, end, key) => {
+      if(start && end && start < end){
+        stages.push({ start, end, key });
+      }
+    };
+
+    pushStage(pa,  tpd, "eng_perm");
+    pushStage(tpd, fs,  "epc_proc");
+    pushStage(fs,  cs,  "epc_eng");
+    pushStage(cs,  mc,  "construction");
+    pushStage(mc,  pac, "commissioning");
+
+    return stages;
+  }
+
+  function buildMonths(){
+    // decide años en función del filtro
+    const ys = [];
+    if(yearFilter.value === "all"){
+      let minY = Infinity, maxY = -Infinity;
+      const dateFields = [
+        "permitting_approval_date",
+        "tender_package_design_date",
+        "financing_signing_date",
+        "construction_start_date",
+        "mechanical_completion_date",
+        "pac_date"
+      ];
+      for(const p of projects){
+        for(const f of dateFields){
+          const d = toDate(p[f]);
+          if(d){
+            const y = d.getUTCFullYear();
+            if(y < minY) minY = y;
+            if(y > maxY) maxY = y;
+          }
+        }
+      }
+      if(!isFinite(minY) || !isFinite(maxY)) return [];
+      for(let y = minY; y <= maxY; y++){
+        ys.push(y);
+      }
+    }else{
+      ys.push(Number(yearFilter.value));
+    }
+
+    const months = [];
+    for(const y of ys){
+      for(let m = 0; m < 12; m++){
+        const start = new Date(Date.UTC(y, m, 1));
+        const end   = new Date(Date.UTC(y, m+1, 1));
+        const days  = (end - start) / (1000*60*60*24);
+        const label = start.toLocaleString("en-GB", { month:"short", year:"numeric", timeZone:"UTC" });
+        months.push({ year:y, month:m+1, label, start, end, days });
+      }
+    }
+    return months;
+  }
+
+  function getOverlapDays(aStart, aEnd, bStart, bEnd){
+    const start = aStart > bStart ? aStart : bStart;
+    const end   = aEnd < bEnd ? aEnd : bEnd;
+    const ms    = end - start;
+    if(ms <= 0) return 0;
+    return ms / (1000*60*60*24);
+  }
+
+  function getSlotsForProjectRole(projectId, roleName){
+    const specific = projectRoleRequirements.find(
+      r => r.project_id === projectId && r.role_name === roleName
+    );
+    if(specific) return Number(specific.slots || 0);
+    const std = projectRoleStandard.find(s => s.role_name === roleName);
+    return std ? Number(std.default_slots || 0) : 0;
+  }
+
+  function renderDemandTable(){
+    demandTableBody.innerHTML = "";
+
+    if(!projects.length || !roles.length){
+      demandTableBody.innerHTML = `<tr><td colspan="11" class="muted">No data</td></tr>`;
+      return;
+    }
+
+    const months = buildMonths();
+    if(!months.length){
+      demandTableBody.innerHTML = `<tr><td colspan="11" class="muted">No months in range</td></tr>`;
+      return;
+    }
+
+    const projSubset = filteredProjects(); // respeta region + project filter
+    const rowsHtml = [];
+
+    for(const month of months){
+      const projectsSet = new Set();
+      const regionsSet  = new Set();
+      let totalMW = 0;
+      const roleDemand = {};
+      for(const r of KEY_ROLES) roleDemand[r] = 0;
+
+      for(const p of projSubset){
+        const stages = getProjectStages(p);
+        if(!stages.length) continue;
+
+        let projectContributes = false;
+
+        for(const seg of stages){
+          const overlapDays = getOverlapDays(seg.start, seg.end, month.start, month.end);
+          if(overlapDays <= 0) continue;
+
+          projectContributes = true;
+          const fraction = overlapDays / month.days;
+          const prob = Number(p.probability || 1);
+
+          for(const roleName of KEY_ROLES){
+            const role = roleByName[roleName];
+            if(!role) continue;
+            const field = STAGE_FIELD_MAP[seg.key];
+            const stageDemand = Number(role[field] || 0); // FTE per project in that stage
+            if(!stageDemand) continue;
+
+            const slots = getSlotsForProjectRole(p.id, roleName);
+            if(!slots) continue;
+
+            roleDemand[roleName] += slots * stageDemand * prob * fraction;
+          }
+        }
+
+        if(projectContributes){
+          projectsSet.add(p.id);
+          if(p.region) regionsSet.add(p.region);
+          if(p.capacity_mw) totalMW += Number(p.capacity_mw);
+        }
+      }
+
+      if(projectsSet.size === 0){
+        // no proyectos en este mes → no mostramos la fila
+        continue;
+      }
+
+      const fmt = (v) => v ? v.toFixed(2) : "0.00";
+
+      rowsHtml.push(`
+        <tr>
+          <td>${month.label}</td>
+          <td>${projectsSet.size}</td>
+          <td>${totalMW.toFixed(1)}</td>
+          <td>${regionsSet.size}</td>
+          <td>${fmt(roleDemand["PD"])}</td>
+          <td>${fmt(roleDemand["PM"])}</td>
+          <td>${fmt(roleDemand["Permitting Manager"])}</td>
+          <td>${fmt(roleDemand["Site Manager"])}</td>
+          <td>${fmt(roleDemand["Quality Manager"])}</td>
+          <td>${fmt(roleDemand["H&S Manager"])}</td>
+          <td>${fmt(roleDemand["Project Engineer"])}</td>
+        </tr>
+      `);
+    }
+
+    if(!rowsHtml.length){
+      demandTableBody.innerHTML = `<tr><td colspan="11" class="muted">No active projects in selected filters.</td></tr>`;
+    }else{
+      demandTableBody.innerHTML = rowsHtml.join("");
+    }
+
+    const yLabel = yearFilter.value === "all" ? "All years" : yearFilter.value;
+    const rLabel = regionFilter.value === "all" ? "All regions" : regionFilter.value;
+    demandLabel.textContent = `${yLabel} · ${rLabel}`;
+  }
+
+  // ---------- EVENTOS ----------
+
   regionFilter.addEventListener("change", () => {
+    updateProjectFilter();
     renderSummary();
     renderRolesTable();
     renderProjectsTable();
-    updateAssignProjectOptions();
+    renderDemandTable();
+  });
+
+  yearFilter.addEventListener("change", () => {
+    renderDemandTable();
+  });
+
+  projectFilter.addEventListener("change", () => {
+    renderSummary();
+    renderProjectsTable();
+    renderDemandTable();
   });
 
   refreshBtn.addEventListener("click", loadData);
-
-  personSelect.addEventListener("change", () => {
-    selectedPersonId = personSelect.value || null;
-    renderPersonDetail();
-  });
-
-  assignForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if(!selectedPersonId){
-      alert("Select a person first.");
-      return;
-    }
-    const projectId = assignProject.value;
-    const stage = assignStage.value;
-    const fte = parseFloat(assignFte.value || "0");
-
-    if(!projectId || !stage || !fte){
-      alert("Project, stage and FTE are required.");
-      return;
-    }
-
-    const person = people.find(p => p.id === selectedPersonId);
-    if(!person){
-      alert("Unknown person.");
-      return;
-    }
-
-    const { data, error } = await supabase.from("assignments").insert({
-      project_id: projectId,
-      person_id: selectedPersonId,
-      role_name: person.role_name,
-      stage,
-      fte_on_project: fte
-    }).select();
-
-    if(error){
-      console.error("Error inserting assignment", error);
-      alert("Error saving assignment. Check console.");
-      return;
-    }
-
-    // add to local cache and re-render
-    if(data && data.length){
-      assignments.push(data[0]);
-    }
-    assignProject.value = "";
-    assignFte.value = "1";
-    renderPersonDetail();
-  });
 
   // initial load
   loadData();
