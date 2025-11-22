@@ -187,6 +187,34 @@
       color:var(--muted);
       padding:8px 2px 2px;
     }
+    .subline{
+      font-size:.75rem;
+      color:var(--muted);
+      margin-top:4px;
+    }
+    .flex-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+    .inline-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.4);
+      font-size:.7rem;
+    }
+    .inline-badge strong{
+      color:var(--accent);
+    }
+    .small{
+      font-size:.75rem;
+    }
+    .mt8{margin-top:8px;}
+    .mt4{margin-top:4px;}
   </style>
 </head>
 <body>
@@ -209,7 +237,7 @@
   </header>
 
   <main>
-    <!-- SUMMARY -->
+    <!-- SUMMARY + PERSON SELECTOR -->
     <section class="panel">
       <h2>
         Overview
@@ -225,6 +253,12 @@
           <div class="card-label">People</div>
           <div class="card-value" id="summaryPeople">–</div>
           <div class="card-extra muted" id="summaryPeopleExtra">internal + OE</div>
+          <div class="subline">
+            Person focus: 
+            <select id="personSelect" class="small" style="margin-top:4px;width:100%;">
+              <option value="">Select person…</option>
+            </select>
+          </div>
         </div>
         <div class="card">
           <div class="card-label">Projects</div>
@@ -232,12 +266,6 @@
           <div class="card-extra muted" id="summaryProjectsExtra">filtered by region</div>
         </div>
       </div>
-      <div style="margin-bottom:10px;">
-  <select id="projectSelector">
-    <option value="">Select project…</option>
-  </select>
-</div>
-
       <div class="placeholder">
         Later: quick alerts like <strong>“PM overbooked in IT Q2 2026”</strong>, etc.
       </div>
@@ -299,14 +327,67 @@
       </div>
     </section>
 
-    <!-- DETAIL PLACEHOLDER (org chart / heatmap etc.) -->
+    <!-- DETAIL PANEL: PERSON FOCUS (ASSIGNMENTS) -->
     <section class="panel">
       <h2>
         Detail panel
-        <span class="label">Role / Project focus</span>
+        <span class="label">Person / assignments</span>
       </h2>
-      <div class="placeholder" id="detailPlaceholder">
-        Select a project or role to show detailed view (org chart, assignments, etc.).
+      <div id="detailPlaceholder">
+        <div class="placeholder">
+          Select a person in the PEOPLE card to see and edit their project assignments.
+        </div>
+      </div>
+      <div id="personDetail" style="display:none;">
+        <div id="personInfo" class="small"></div>
+
+        <div class="mt8">
+          <div class="inline-badge"><strong>Current assignments</strong></div>
+          <table class="mt4">
+            <thead>
+              <tr>
+                <th class="small">Project</th>
+                <th class="small">Region</th>
+                <th class="small">Stage</th>
+                <th class="small">FTE</th>
+              </tr>
+            </thead>
+            <tbody id="personAssignmentsBody">
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt8">
+          <div class="inline-badge"><strong>Assign to project</strong></div>
+          <form id="assignForm" class="mt4">
+            <div class="flex-row">
+              <label class="small">
+                Project
+                <select id="assignProject" required>
+                  <option value="">Select…</option>
+                </select>
+              </label>
+              <label class="small">
+                Stage
+                <select id="assignStage" required>
+                  <option value="eng_perm">Eng & Perm</option>
+                  <option value="epc_proc">EPC Proc</option>
+                  <option value="epc_eng">EPC Eng</option>
+                  <option value="construction">Construction</option>
+                  <option value="commissioning">Commissioning</option>
+                </select>
+              </label>
+              <label class="small">
+                FTE
+                <input id="assignFte" type="number" min="0.05" max="2" step="0.05" value="1" required />
+              </label>
+              <button type="submit" class="primary small">Add</button>
+            </div>
+          </form>
+          <div class="subline">
+            This will create a record in <code>assignments</code> for this person / project / stage.
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -314,7 +395,6 @@
 
 <!-- Supabase JS -->
 <script type="module">
-  // TODO: replace with your own Supabase URL and anon key
   const SUPABASE_URL = "https://ascfisqbwvkfdmcskslr.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_KLPwFBTL34aDaQJ7XIHBCA_K8San_bV";
 
@@ -334,117 +414,77 @@
   const summaryPeople   = document.getElementById("summaryPeople");
   const summaryProjects = document.getElementById("summaryProjects");
 
+  const personSelect        = document.getElementById("personSelect");
+  const detailPlaceholder   = document.getElementById("detailPlaceholder");
+  const personDetail        = document.getElementById("personDetail");
+  const personInfo          = document.getElementById("personInfo");
+  const personAssignmentsBody = document.getElementById("personAssignmentsBody");
+  const assignForm          = document.getElementById("assignForm");
+  const assignProject       = document.getElementById("assignProject");
+  const assignStage         = document.getElementById("assignStage");
+  const assignFte           = document.getElementById("assignFte");
+
   let roles = [];
   let people = [];
   let projects = [];
-  let projectRoleStandard = []; // filas de project_role_standard
-  let projectRoleRequirements = [];    // filas de project_role_requirements
-  let selectedProjectId = null;        // proyecto seleccionado ahora mismo
-  async function loadData(){
-    const [rolesRes, peopleRes, projectsRes, stdRes] = await Promise.all([
-  supabase.from("roles_capacity").select("*").order("department"),
-  supabase.from("people").select("*"),
-  supabase.from("projects").select("*"),
-  supabase.from("project_role_standard").select("*").order("role_name")
-]);
+  let assignments = [];
 
+  let selectedPersonId = null;
+
+  async function loadData(){
+    const [rolesRes, peopleRes, projectsRes, assignmentsRes] = await Promise.all([
+      supabase.from("roles_capacity").select("*").order("department"),
+      supabase.from("people").select("*"),
+      supabase.from("projects").select("*"),
+      supabase.from("assignments").select("*")
+    ]);
 
     if(rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
     if(peopleRes.error)  console.error("people error", peopleRes.error);
     if(projectsRes.error)console.error("projects error", projectsRes.error);
+    if(assignmentsRes.error)console.error("assignments error", assignmentsRes.error);
 
-    roles    = rolesRes.data  || [];
-    people   = peopleRes.data || [];
-    projects = projectsRes.data || [];
-    projectRoleStandard = stdRes.data || [];   // 👈 ESTA ES LA LÍNEA
-    projectRoleRequirements = reqRes.data || [];
+    roles       = rolesRes.data  || [];
+    people      = peopleRes.data || [];
+    projects    = projectsRes.data || [];
+    assignments = assignmentsRes.data || [];
+
     updateRegionFilter();
+    updatePersonSelect();
+    updateAssignProjectOptions();
+
     renderSummary();
     renderRolesTable();
     renderProjectsTable();
-    updateProjectSelector();
- if (selectedProjectId) {
-    renderProjectRolesDetail(selectedProjectId);
+    renderPersonDetail(); // in case a person was already selected
   }
-  }
-function updateProjectSelector(){
-  const selector = document.getElementById("projectSelector");
-  selector.innerHTML = `<option value="">Select project…</option>`;
-  for(const p of projects){
-    selector.innerHTML += `<option value="${p.id}">${p.project_code} — ${p.project_name}</option>`;
-  }
-}
 
   function updateRegionFilter(){
-    // fill region dropdown from projects regions
     const regions = Array.from(new Set(projects.map(p => p.region).filter(Boolean)));
     regionFilter.innerHTML = '<option value="all">All regions</option>' +
       regions.map(r => `<option value="${r}">${r}</option>`).join("");
   }
-document.getElementById("projectSelector").addEventListener("change", async (e) => {
-  const projectId = e.target.value;
-  if(!projectId){
-    detailPlaceholder.innerHTML = "Select a project to view roles.";
-    return;
-  }
-  await loadProjectRoles(projectId);
-});
-async function loadProjectRoles(projectId){
-  const { data: req, error } = await supabase
-    .from("project_role_requirements")
-    .select("*")
-    .eq("project_id", projectId);
 
-  if(error){
-    detailPlaceholder.innerHTML = "Error loading project roles.";
-    return;
+  function updatePersonSelect(){
+    // order people by name
+    const sorted = [...people].sort((a,b) => (a.full_name || "").localeCompare(b.full_name || ""));
+    personSelect.innerHTML = '<option value="">Select person…</option>' +
+      sorted.map(p => {
+        const label = `${p.full_name} – ${p.role_name} (${p.region || "-"})`;
+        return `<option value="${p.id}">${label}</option>`;
+      }).join("");
+
+    if(selectedPersonId){
+      personSelect.value = selectedPersonId;
+    }
   }
 
-  renderProjectOrgChart(req);
-}
-function renderProjectOrgChart(requirements){
-  let html = `<table style="width:100%;font-size:.78rem;">
-    <thead>
-      <tr>
-        <th>Role</th>
-        <th>Slots</th>
-        <th>People assigned</th>
-        <th>Edit</th>
-      </tr>
-    </thead><tbody>`;
-
-  for(const row of requirements){
-    html += `
-      <tr>
-        <td>${row.role_name}</td>
-        <td>${row.slots}</td>
-        <td>(soon: assignments)</td>
-        <td><button onclick="editSlots('${row.id}', ${row.slots})">Edit</button></td>
-      </tr>
-    `;
+  function updateAssignProjectOptions(){
+    const region = regionFilter.value;
+    const list = region === "all" ? projects : projects.filter(p => p.region === region);
+    assignProject.innerHTML = '<option value="">Select…</option>' +
+      list.map(p => `<option value="${p.id}">${p.project_code || ""} – ${p.project_name}</option>`).join("");
   }
-
-  html += "</tbody></table>";
-
-  detailPlaceholder.innerHTML = html;
-}
-async function editSlots(reqId, current){
-  const newVal = prompt("New number of slots:", current);
-  if(newVal === null) return;
-  
-  const { error } = await supabase
-    .from("project_role_requirements")
-    .update({ slots: Number(newVal) })
-    .eq("id", reqId);
-
-  if(error){
-    alert("Error saving.");
-    return;
-  }
-
-  const projectId = document.getElementById("projectSelector").value;
-  loadProjectRoles(projectId);
-}
 
   function renderSummary(){
     summaryRoles.textContent    = roles.length;
@@ -467,7 +507,6 @@ async function editSlots(reqId, current){
   function renderRolesTable(){
     const regionPeople = filteredPeople();
 
-    // aggregate FTE by role and type
     const agg = {};
     for(const person of regionPeople){
       const key = person.role_name;
@@ -498,182 +537,132 @@ async function editSlots(reqId, current){
   }
 
   function renderProjectsTable(){
-  const rows = filteredProjects();
-  projectsTableBody.innerHTML = "";
-  for(const p of rows){
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${p.project_code || ""}</td>
-      <td>${p.project_name || ""}</td>
-      <td>${p.region || ""}</td>
-      <td>${p.country || ""}</td>
-      <td>${p.technology || ""}</td>
-      <td>${p.capacity_mw ?? ""}</td>
-      <td><span class="pill"><strong>${p.status || ""}</strong></span></td>
-      <td>${p.construction_start_date || ""}</td>
-      <td>${p.pac_date || ""}</td>
-    `;
-
-    // 💡 al hacer clic en una fila → mostramos detalle de ese proyecto
-    tr.style.cursor = "pointer";
-    tr.addEventListener("click", () => {
-      selectedProjectId = p.id;
-      renderProjectRolesDetail(p.id);
-    });
-
-    projectsTableBody.appendChild(tr);
-  }
-  summaryProjects.textContent = rows.length;
-}
-
-function renderProjectRolesDetail(projectId) {
-  const detail = document.getElementById("detailPlaceholder");
-  const project = projects.find(p => p.id === projectId);
-  if (!project) {
-    detail.innerHTML = "<div class='placeholder'>Project not found.</div>";
-    return;
+    const rows = filteredProjects();
+    projectsTableBody.innerHTML = "";
+    for(const p of rows){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${p.project_code || ""}</td>
+        <td>${p.project_name || ""}</td>
+        <td>${p.region || ""}</td>
+        <td>${p.country || ""}</td>
+        <td>${p.technology || ""}</td>
+        <td>${p.capacity_mw ?? ""}</td>
+        <td><span class="pill"><strong>${p.status || ""}</strong></span></td>
+        <td>${p.construction_start_date || ""}</td>
+        <td>${p.pac_date || ""}</td>
+      `;
+      projectsTableBody.appendChild(tr);
+    }
+    summaryProjects.textContent = rows.length;
   }
 
-  // 1. Miramos si este proyecto tiene requisitos específicos
-  const specificReqs = projectRoleRequirements.filter(r => r.project_id === projectId);
+  function renderPersonDetail(){
+    if(!selectedPersonId){
+      detailPlaceholder.style.display = "block";
+      personDetail.style.display = "none";
+      return;
+    }
+    const person = people.find(p => p.id === selectedPersonId);
+    if(!person){
+      detailPlaceholder.style.display = "block";
+      personDetail.style.display = "none";
+      return;
+    }
 
-  // 2. Si no hay nada, usamos el estándar (project_role_standard)
-  const rowsSource = specificReqs.length > 0 ? specificReqs : projectRoleStandard;
+    detailPlaceholder.style.display = "none";
+    personDetail.style.display = "block";
 
-  // 3. Pintamos la tabla
-  let html = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div>
-        <div class="pill">Project: <strong>${project.project_code || ""}</strong> – ${project.project_name || ""}</div>
+    personInfo.innerHTML = `
+      <div class="flex-row">
+        <div class="inline-badge"><strong>${person.full_name}</strong></div>
+        <div class="inline-badge small">${person.role_name} · ${person.department || "-"}</div>
+        <div class="inline-badge small">Region: <strong>${person.region || "-"}</strong></div>
+        <div class="inline-badge small">FTE base: <strong>${Number(person.fte_base || 0).toFixed(2)}</strong></div>
+        <div class="inline-badge small">Type: <strong>${person.type}</strong></div>
       </div>
-      <button id="cloneStandardBtn" class="primary" style="font-size:.75rem;">Use standard for this project</button>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:.8rem;">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:4px;">Role</th>
-          <th style="text-align:left;padding:4px;">Slots</th>
-          <th style="text-align:left;padding:4px;">People assigned</th>
-          <th style="text-align:left;padding:4px;">Edit</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  for (const row of rowsSource) {
-    const roleName = row.role_name;
-    const slots    = row.slots ?? row.default_slots ?? 1;
-
-    html += `
-      <tr data-role="${roleName}">
-        <td style="padding:4px;">${roleName}</td>
-        <td style="padding:4px;">${slots}</td>
-        <td style="padding:4px;" class="muted">(soon: assignments)</td>
-        <td style="padding:4px;">
-          <button class="pill edit-slot-btn" data-role="${roleName}" style="font-size:.7rem;">Edit</button>
-        </td>
-      </tr>
     `;
+
+    // fill assignments table
+    const rows = assignments.filter(a => a.person_id === selectedPersonId);
+    personAssignmentsBody.innerHTML = "";
+    if(rows.length === 0){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="4" class="muted small">No assignments yet.</td>`;
+      personAssignmentsBody.appendChild(tr);
+    }else{
+      for(const a of rows){
+        const project = projects.find(p => p.id === a.project_id);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="small">${project ? (project.project_code || "") + " – " + project.project_name : a.project_id}</td>
+          <td class="small">${project ? (project.region || "") : ""}</td>
+          <td class="small">${a.stage}</td>
+          <td class="small">${Number(a.fte_on_project || 0).toFixed(2)}</td>
+        `;
+        personAssignmentsBody.appendChild(tr);
+      }
+    }
   }
 
-  html += `
-      </tbody>
-    </table>
-  `;
-
-  detail.innerHTML = html;
-
-  // Handler para "Usar estándar" → clona project_role_standard en project_role_requirements
-  const cloneBtn = document.getElementById("cloneStandardBtn");
-  if (cloneBtn) {
-    cloneBtn.addEventListener("click", async () => {
-      if (!confirm("Overwrite role slots for this project with the standard template?")) return;
-
-      const payload = projectRoleStandard.map(row => ({
-        project_id: projectId,
-        role_name: row.role_name,
-        slots: row.default_slots ?? row.slots ?? 1
-      }));
-
-      const { error } = await supabase.from("project_role_requirements").upsert(payload, {
-        onConflict: "project_id,role_name"
-      });
-
-      if (error) {
-        console.error("Error cloning standard", error);
-        alert("Error cloning standard: " + error.message);
-        return;
-      }
-
-      // Recargamos requisitos desde la DB
-      const { data, error: reqErr } = await supabase
-        .from("project_role_requirements")
-        .select("*")
-        .eq("project_id", projectId);
-
-      if (!reqErr && data) {
-        // actualizamos cache global
-        projectRoleRequirements = projectRoleRequirements
-          .filter(r => r.project_id !== projectId)
-          .concat(data);
-      }
-
-      renderProjectRolesDetail(projectId);
-    });
-  }
-
-  // Handler para editar slots (por ahora con prompt sencillo)
-  detail.querySelectorAll(".edit-slot-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const roleName = btn.getAttribute("data-role");
-      const currentRow = rowsSource.find(r => r.role_name === roleName);
-      const currentSlots = currentRow.slots ?? currentRow.default_slots ?? 1;
-
-      const newValueStr = prompt(`Slots for ${roleName}:`, String(currentSlots));
-      if (newValueStr === null) return; // cancelado
-
-      const newSlots = parseInt(newValueStr, 10);
-      if (Number.isNaN(newSlots) || newSlots <= 0) {
-        alert("Please enter a positive integer.");
-        return;
-      }
-
-      // upsert en project_role_requirements para este proyecto + role
-      const { error } = await supabase.from("project_role_requirements").upsert({
-        project_id: projectId,
-        role_name: roleName,
-        slots: newSlots
-      }, {
-        onConflict: "project_id,role_name"
-      });
-
-      if (error) {
-        console.error("Error updating slots", error);
-        alert("Error updating slots: " + error.message);
-        return;
-      }
-
-      // actualizamos cache local
-      const existing = projectRoleRequirements.find(r => r.project_id === projectId && r.role_name === roleName);
-      if (existing) {
-        existing.slots = newSlots;
-      } else {
-        projectRoleRequirements.push({ project_id: projectId, role_name: roleName, slots: newSlots });
-      }
-
-      // refrescamos el panel
-      renderProjectRolesDetail(projectId);
-    });
-  });
-}
-
+  // Event listeners
   regionFilter.addEventListener("change", () => {
     renderSummary();
     renderRolesTable();
     renderProjectsTable();
+    updateAssignProjectOptions();
   });
 
   refreshBtn.addEventListener("click", loadData);
+
+  personSelect.addEventListener("change", () => {
+    selectedPersonId = personSelect.value || null;
+    renderPersonDetail();
+  });
+
+  assignForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if(!selectedPersonId){
+      alert("Select a person first.");
+      return;
+    }
+    const projectId = assignProject.value;
+    const stage = assignStage.value;
+    const fte = parseFloat(assignFte.value || "0");
+
+    if(!projectId || !stage || !fte){
+      alert("Project, stage and FTE are required.");
+      return;
+    }
+
+    const person = people.find(p => p.id === selectedPersonId);
+    if(!person){
+      alert("Unknown person.");
+      return;
+    }
+
+    const { data, error } = await supabase.from("assignments").insert({
+      project_id: projectId,
+      person_id: selectedPersonId,
+      role_name: person.role_name,
+      stage,
+      fte_on_project: fte
+    }).select();
+
+    if(error){
+      console.error("Error inserting assignment", error);
+      alert("Error saving assignment. Check console.");
+      return;
+    }
+
+    // add to local cache and re-render
+    if(data && data.length){
+      assignments.push(data[0]);
+    }
+    assignProject.value = "";
+    assignFte.value = "1";
+    renderPersonDetail();
+  });
 
   // initial load
   loadData();
