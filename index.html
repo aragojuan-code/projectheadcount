@@ -80,6 +80,7 @@
     @media (max-width:980px){
       main{
         grid-template-columns:1fr;
+        grid-template-rows:auto;
       }
     }
     .panel{
@@ -142,34 +143,52 @@
       padding:6px 4px;
       text-align:left;
       border-bottom:1px solid rgba(31,41,55,.8);
+      vertical-align:middle;
     }
     th{
       font-size:.72rem;
       text-transform:uppercase;
       letter-spacing:.06em;
       color:var(--muted);
-      white-space:nowrap;
+      position:sticky;
+      top:0;
+      background:rgba(15,23,42,.98);
+      z-index:1;
     }
     tbody tr:nth-child(even){
       background-color:rgba(15,23,42,.7);
     }
-    .muted{
-      color:var(--muted);
+    tbody tr:hover{
+      background-color:rgba(55,65,81,.8);
+      cursor:pointer;
     }
+    .muted{ color:var(--muted); }
     .pill{
       padding:2px 8px;
       border-radius:999px;
       background:rgba(15,23,42,.9);
       border:1px solid rgba(148,163,184,.4);
       font-size:.7rem;
+      display:inline-flex;
+      gap:4px;
+      align-items:center;
     }
-    .pill strong{
-      color:var(--accent);
-    }
+    .pill strong{ color:var(--accent); }
     .placeholder{
       font-size:.8rem;
       color:var(--muted);
       padding:8px 2px 2px;
+    }
+    .subtable{
+      margin-top:8px;
+      max-height:220px;
+      overflow:auto;
+    }
+    .clickable-row{
+      cursor:pointer;
+    }
+    .clickable-row:hover{
+      background-color:rgba(55,65,81,.9);
     }
   </style>
 </head>
@@ -178,17 +197,23 @@
   <header>
     <div class="title-block">
       <h1>Project Headcount – Command Center</h1>
-      <div class="subtitle">Supabase · Roles · People · Projects · 2025–2026</div>
+      <div class="subtitle">Supabase · Roles · People · Projects · 2025–2027</div>
     </div>
     <div class="filters">
       <select id="regionFilter">
         <option value="all">All regions</option>
       </select>
-      <select id="yearFilter">
-        <option value="all">All years</option>
+      <select id="countryFilter">
+        <option value="all">All countries</option>
+      </select>
+      <select id="techFilter">
+        <option value="all">All technologies</option>
       </select>
       <select id="projectFilter">
         <option value="all">All projects</option>
+      </select>
+      <select id="yearFilter">
+        <option value="">Year…</option>
       </select>
       <button class="primary" id="refreshBtn">Refresh data</button>
     </div>
@@ -215,7 +240,7 @@
         <div class="card">
           <div class="card-label">Projects</div>
           <div class="card-value" id="summaryProjects">–</div>
-          <div class="card-extra muted" id="summaryProjectsExtra">filtered by region/year/project</div>
+          <div class="card-extra muted" id="summaryProjectsExtra">filtered set</div>
         </div>
       </div>
       <div class="placeholder">
@@ -229,7 +254,7 @@
         Roles capacity by region
         <span class="label"><span id="regionLabel">All regions</span></span>
       </h2>
-      <div style="max-height:340px;overflow:auto;">
+      <div style="max-height:260px;overflow:auto;">
         <table id="rolesTable">
           <thead>
             <tr>
@@ -241,9 +266,7 @@
               <th>Total FTE</th>
             </tr>
           </thead>
-          <tbody>
-            <!-- rows injected by JS -->
-          </tbody>
+          <tbody></tbody>
         </table>
       </div>
     </section>
@@ -252,9 +275,9 @@
     <section class="panel">
       <h2>
         Projects
-        <span class="label">2025–2026 window</span>
+        <span class="label">2025–2027 window</span>
       </h2>
-      <div style="max-height:340px;overflow:auto;">
+      <div style="max-height:260px;overflow:auto;">
         <table id="projectsTable">
           <thead>
             <tr>
@@ -269,9 +292,7 @@
               <th>PAC</th>
             </tr>
           </thead>
-          <tbody>
-            <!-- rows injected by JS -->
-          </tbody>
+          <tbody></tbody>
         </table>
       </div>
       <div class="placeholder">
@@ -279,36 +300,37 @@
       </div>
     </section>
 
-    <!-- MONTHLY DEMAND PANEL -->
-    <section class="panel" style="grid-column:1 / -1;">
+    <!-- MONTHLY DEMAND + DETAIL -->
+    <section class="panel">
       <h2>
-        Monthly demand – key roles
-        <span class="label" id="demandLabel">All years · All regions</span>
+        Monthly demand (FTE) – Focus roles
+        <span class="label"><span id="monthContextLabel">Select year</span></span>
       </h2>
-      <div style="max-height:340px;overflow:auto;">
-        <table id="demandTable">
+      <div style="max-height:220px;overflow:auto;">
+        <table id="monthlyTable">
           <thead>
             <tr>
               <th>Month</th>
-              <th>#Projects</th>
-              <th>Total MW</th>
-              <th>#Regions</th>
               <th>PD</th>
               <th>PM</th>
-              <th>Permitting Mgr</th>
+              <th>Perm.</th>
               <th>Site Mgr</th>
-              <th>Quality Mgr</th>
+              <th>Qual. Mgr</th>
               <th>H&amp;S Mgr</th>
-              <th>Project Eng</th>
+              <th>Proj Eng</th>
+              <th>Constr. Mgr</th>
+              <th>#Proj</th>
+              <th>MW</th>
+              <th>PV proj</th>
+              <th>BESS proj</th>
+              <th>#Regions</th>
             </tr>
           </thead>
-          <tbody>
-            <!-- rows injected by JS -->
-          </tbody>
+          <tbody></tbody>
         </table>
       </div>
-      <div class="placeholder">
-        This table is computed from: project dates × role-stage demand matrix × slots per project (standard/overrides).
+      <div class="placeholder" id="monthDetail">
+        Click a month row to see the list of projects active in that month, their stage, MW, region, etc.
       </div>
     </section>
   </main>
@@ -316,147 +338,184 @@
 
 <!-- Supabase JS -->
 <script type="module">
-  // ⚠️ Cambia esto por tu URL y tu anon key
+  // Usa tu URL y anon key (publishable) de Supabase
   const SUPABASE_URL = "https://ascfisqbwvkfdmcskslr.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_KLPwFBTL34aDaQJ7XIHBCA_K8San_bV";
 
   import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // Filtros
   const regionFilter  = document.getElementById("regionFilter");
-  const yearFilter    = document.getElementById("yearFilter");
+  const countryFilter = document.getElementById("countryFilter");
+  const techFilter    = document.getElementById("techFilter");
   const projectFilter = document.getElementById("projectFilter");
+  const yearFilter    = document.getElementById("yearFilter");
   const refreshBtn    = document.getElementById("refreshBtn");
+  const regionLabel   = document.getElementById("regionLabel");
+  const monthContextLabel = document.getElementById("monthContextLabel");
 
-  const regionLabel        = document.getElementById("regionLabel");
-  const demandLabel        = document.getElementById("demandLabel");
-  const rolesTableBody     = document.querySelector("#rolesTable tbody");
-  const projectsTableBody  = document.querySelector("#projectsTable tbody");
-  const demandTableBody    = document.querySelector("#demandTable tbody");
+  // Tablas / summary
+  const rolesTableBody    = document.querySelector("#rolesTable tbody");
+  const projectsTableBody = document.querySelector("#projectsTable tbody");
+  const monthlyTableBody  = document.querySelector("#monthlyTable tbody");
+  const monthDetailDiv    = document.getElementById("monthDetail");
 
   const summaryRoles    = document.getElementById("summaryRoles");
   const summaryPeople   = document.getElementById("summaryPeople");
   const summaryProjects = document.getElementById("summaryProjects");
 
+  // Datos en memoria
   let roles = [];
+  let rolesByName = {};
   let people = [];
   let projects = [];
-  let projectRoleStandard = [];
-  let projectRoleRequirements = [];
-  let roleByName = {};
+  let projectRoleReq = [];   // project_role_requirements
+  let prrMap = {};           // { project_id : { role_name: slots } }
 
-  const KEY_ROLES = [
-    "PD",
-    "PM",
-    "Permitting Manager",
-    "Site Manager",
-    "Quality Manager",
-    "H&S Manager",
-    "Project Engineer"
+  // Roles foco para demanda mensual
+  const FOCUS_ROLES = [
+    { roleName:"PD",                 label:"PD",          defaultSlots:1 },
+    { roleName:"PM",                 label:"PM",          defaultSlots:1 },
+    { roleName:"Permitting Manager", label:"Perm.",       defaultSlots:1 },
+    { roleName:"Site Manager",       label:"Site Mgr",    defaultSlots:2 },
+    { roleName:"Quality Manager",    label:"Qual. Mgr",   defaultSlots:1 },
+    { roleName:"H&S Manager",        label:"H&S Mgr",     defaultSlots:1 },
+    { roleName:"Project Engineer",   label:"Proj Eng",    defaultSlots:1 },
+    { roleName:"Head of Construction", label:"Constr. Mgr", defaultSlots:1 }
   ];
 
-  const STAGE_FIELD_MAP = {
-    eng_perm: "eng_perm_demand",
-    epc_proc: "epc_proc_demand",
-    epc_eng: "epc_eng_demand",
-    construction: "construction_demand",
-    commissioning: "commissioning_demand"
+  const STAGE_LABELS = {
+    eng_perm: "Eng & Perm",
+    epc_proc: "EPC Proc",
+    epc_eng: "EPC Eng",
+    construction: "Construction",
+    commissioning: "Commissioning"
   };
 
   async function loadData(){
-    const [rolesRes, peopleRes, projectsRes, stdRes, reqRes] = await Promise.all([
-      supabase.from("roles_capacity").select("*").order("department"),
+    const [rolesRes, peopleRes, projectsRes, prrRes] = await Promise.all([
+      supabase.from("roles_capacity").select("*"),
       supabase.from("people").select("*"),
       supabase.from("projects").select("*"),
-      supabase.from("project_role_standard").select("*"),
       supabase.from("project_role_requirements").select("*")
     ]);
 
     if(rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
     if(peopleRes.error)  console.error("people error", peopleRes.error);
     if(projectsRes.error)console.error("projects error", projectsRes.error);
-    if(stdRes.error)     console.error("project_role_standard error", stdRes.error);
-    if(reqRes.error)     console.error("project_role_requirements error", reqRes.error);
+    if(prrRes.error)     console.error("project_role_requirements error", prrRes.error);
 
     roles    = rolesRes.data  || [];
     people   = peopleRes.data || [];
-    projects = projectsRes.data || [];
+    projectRoleReq = prrRes.data || [];
 
-    projectRoleStandard      = stdRes.data || [];   // ← AQUÍ va projectRoleStandard = stdRes.data || [];
-    projectRoleRequirements  = reqRes.data || [];
-
-    roleByName = {};
+    // Mapa de roles por nombre
+    rolesByName = {};
     for(const r of roles){
-      roleByName[r.role_name] = r;
+      rolesByName[r.role_name] = r;
     }
 
-    updateRegionFilter();
-    updateYearFilter();
-    updateProjectFilter();
+    // Enriquecer proyectos con fechas JS
+    projects = (projectsRes.data || []).map(p => ({
+      ...p,
+      _pa:  p.permitting_approval_date      ? new Date(p.permitting_approval_date)      : null,
+      _tpd: p.tender_package_design_date    ? new Date(p.tender_package_design_date)    : null,
+      _fs:  p.financing_signing_date        ? new Date(p.financing_signing_date)        : null,
+      _cs:  p.construction_start_date       ? new Date(p.construction_start_date)       : null,
+      _mc:  p.mechanical_completion_date    ? new Date(p.mechanical_completion_date)    : null,
+      _pac: p.pac_date                      ? new Date(p.pac_date)                      : null
+    }));
+
+    // Mapa de slots por proyecto/rol
+    prrMap = {};
+    for(const row of projectRoleReq){
+      if(!prrMap[row.project_id]) prrMap[row.project_id] = {};
+      prrMap[row.project_id][row.role_name] = row.slots;
+    }
+
+    updateFiltersFromProjects();
     renderSummary();
     renderRolesTable();
     renderProjectsTable();
-    renderDemandTable();
+    renderMonthlyTable();
   }
 
-  function updateRegionFilter(){
-    const regions = Array.from(new Set(projects.map(p => p.region).filter(Boolean))).sort();
-    regionFilter.innerHTML = '<option value="all">All regions</option>' +
-      regions.map(r => `<option value="${r}">${r}</option>`).join("");
-  }
+  function updateFiltersFromProjects(){
+    const regions = new Set();
+    const countries = new Set();
+    const techs = new Set();
+    const years = new Set();
 
-  function updateYearFilter(){
-    const yearsSet = new Set();
-    const dateFields = [
-      "permitting_approval_date",
-      "tender_package_design_date",
-      "financing_signing_date",
-      "construction_start_date",
-      "mechanical_completion_date",
-      "pac_date"
-    ];
     for(const p of projects){
-      for(const f of dateFields){
-        const d = toDate(p[f]);
-        if(d) yearsSet.add(d.getUTCFullYear());
+      if(p.region) regions.add(p.region);
+      if(p.country) countries.add(p.country);
+      if(p.technology) techs.add(p.technology);
+
+      const dates = [p.permitting_approval_date, p.tender_package_design_date,
+                     p.financing_signing_date, p.construction_start_date,
+                     p.mechanical_completion_date, p.pac_date];
+      for(const d of dates){
+        if(d){
+          const y = new Date(d).getFullYear();
+          years.add(y);
+        }
       }
     }
-    const years = Array.from(yearsSet).sort();
-    yearFilter.innerHTML = '<option value="all">All years</option>' +
-      years.map(y => `<option value="${y}">${y}</option>`).join("");
-  }
 
-  function updateProjectFilter(){
-    const r = regionFilter.value;
-    const subset = (r === "all") ? projects : projects.filter(p => p.region === r);
+    regionFilter.innerHTML =
+      '<option value="all">All regions</option>' +
+      Array.from(regions).sort().map(r => `<option value="${r}">${r}</option>`).join("");
+
+    countryFilter.innerHTML =
+      '<option value="all">All countries</option>' +
+      Array.from(countries).sort().map(c => `<option value="${c}">${c}</option>`).join("");
+
+    techFilter.innerHTML =
+      '<option value="all">All technologies</option>' +
+      Array.from(techs).sort().map(t => `<option value="${t}">${t}</option>`).join("");
+
     projectFilter.innerHTML =
       '<option value="all">All projects</option>' +
-      subset.map(p => `<option value="${p.id}">${p.project_code || p.project_name}</option>`).join("");
+      projects.map(p => `<option value="${p.id}">${p.project_code || p.project_name}</option>`).join("");
+
+    const yearsArr = Array.from(years).sort();
+    yearFilter.innerHTML =
+      '<option value="">Year…</option>' +
+      yearsArr.map(y => `<option value="${y}">${y}</option>`).join("");
+
+    if(!yearFilter.value && yearsArr.length){
+      yearFilter.value = yearsArr[0];
+    }
   }
 
-  function renderSummary(){
-    summaryRoles.textContent  = roles.length;
-    summaryPeople.textContent = people.length;
-    summaryProjects.textContent = filteredProjects().length;
-  }
-
-  function filteredProjects(){
+  function getFilteredProjects(){
     const r = regionFilter.value;
-    const projId = projectFilter.value;
-    let out = projects;
-    if(r !== "all"){
-      out = out.filter(p => p.region === r);
-    }
-    if(projId !== "all"){
-      out = out.filter(p => p.id === projId);
-    }
-    return out;
+    const c = countryFilter.value;
+    const t = techFilter.value;
+    const pid = projectFilter.value;
+
+    return projects.filter(p => {
+      if(r !== "all" && p.region !== r) return false;
+      if(c !== "all" && p.country !== c) return false;
+      if(t !== "all" && p.technology !== t) return false;
+      if(pid !== "all" && p.id !== pid) return false;
+      return true;
+    });
   }
 
   function filteredPeople(){
     const r = regionFilter.value;
     if(r === "all") return people;
     return people.filter(p => p.region === r);
+  }
+
+  function renderSummary(){
+    const projs = getFilteredProjects();
+    summaryRoles.textContent    = roles.length;
+    summaryPeople.textContent   = people.length;
+    summaryProjects.textContent = projs.length;
+    regionLabel.textContent = regionFilter.value === "all" ? "All regions" : regionFilter.value;
   }
 
   function renderRolesTable(){
@@ -488,11 +547,10 @@
       `;
       rolesTableBody.appendChild(tr);
     }
-    regionLabel.textContent = regionFilter.value === "all" ? "All regions" : regionFilter.value;
   }
 
   function renderProjectsTable(){
-    const rows = filteredProjects();
+    const rows = getFilteredProjects();
     projectsTableBody.innerHTML = "";
     for(const p of rows){
       const tr = document.createElement("tr");
@@ -509,219 +567,198 @@
       `;
       projectsTableBody.appendChild(tr);
     }
-    summaryProjects.textContent = rows.length;
   }
 
-  // ---------- DEMANDA MENSUAL ----------
+  function getStageForDate(project, date){
+    const { _pa, _tpd, _fs, _cs, _mc, _pac } = project;
+    if(!_pa || !_pac) return null;
+    if(date < _pa || date > _pac) return null;
 
-  function toDate(v){
-    if(!v) return null;
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    if(_tpd && date < _tpd) return "eng_perm";
+    if(_fs  && date < _fs)  return "epc_proc";
+    if(_cs  && date < _cs)  return "epc_eng";
+    if(_mc  && date < _mc)  return "construction";
+    return "commissioning";
   }
 
-  function getProjectStages(p){
-    const stages = [];
-    const pa  = toDate(p.permitting_approval_date);
-    const tpd = toDate(p.tender_package_design_date);
-    const fs  = toDate(p.financing_signing_date);
-    const cs  = toDate(p.construction_start_date);
-    const mc  = toDate(p.mechanical_completion_date);
-    const pac = toDate(p.pac_date);
-
-    const pushStage = (start, end, key) => {
-      if(start && end && start < end){
-        stages.push({ start, end, key });
-      }
-    };
-
-    pushStage(pa,  tpd, "eng_perm");
-    pushStage(tpd, fs,  "epc_proc");
-    pushStage(fs,  cs,  "epc_eng");
-    pushStage(cs,  mc,  "construction");
-    pushStage(mc,  pac, "commissioning");
-
-    return stages;
-  }
-
-  function buildMonths(){
-    // decide años en función del filtro
-    const ys = [];
-    if(yearFilter.value === "all"){
-      let minY = Infinity, maxY = -Infinity;
-      const dateFields = [
-        "permitting_approval_date",
-        "tender_package_design_date",
-        "financing_signing_date",
-        "construction_start_date",
-        "mechanical_completion_date",
-        "pac_date"
-      ];
-      for(const p of projects){
-        for(const f of dateFields){
-          const d = toDate(p[f]);
-          if(d){
-            const y = d.getUTCFullYear();
-            if(y < minY) minY = y;
-            if(y > maxY) maxY = y;
-          }
-        }
-      }
-      if(!isFinite(minY) || !isFinite(maxY)) return [];
-      for(let y = minY; y <= maxY; y++){
-        ys.push(y);
-      }
-    }else{
-      ys.push(Number(yearFilter.value));
-    }
+  function computeMonthlyDemand(){
+    const year = parseInt(yearFilter.value,10);
+    if(!year) return [];
 
     const months = [];
-    for(const y of ys){
-      for(let m = 0; m < 12; m++){
-        const start = new Date(Date.UTC(y, m, 1));
-        const end   = new Date(Date.UTC(y, m+1, 1));
-        const days  = (end - start) / (1000*60*60*24);
-        const label = start.toLocaleString("en-GB", { month:"short", year:"numeric", timeZone:"UTC" });
-        months.push({ year:y, month:m+1, label, start, end, days });
+    for(let m=0; m<12; m++){
+      const label = new Date(year, m, 1).toLocaleString("en",{month:"short"});
+      months.push({
+        year,
+        monthIndex:m,
+        label,
+        roleDemand:{},          // role_name -> FTE
+        projectCount:0,
+        totalMw:0,
+        pvCount:0,
+        bessCount:0,
+        regions:new Set(),
+        projects:[]             // { project, stage }
+      });
+    }
+
+    const projs = getFilteredProjects();
+
+    for(const p of projs){
+      for(let m=0; m<12; m++){
+        const midMonth = new Date(year, m, 15);
+        const stage = getStageForDate(p, midMonth);
+        if(!stage) continue;
+
+        const bucket = months[m];
+        bucket.projectCount += 1;
+        bucket.totalMw += Number(p.capacity_mw || 0);
+        if(p.technology === "PV")   bucket.pvCount += 1;
+        if(p.technology === "BESS") bucket.bessCount += 1;
+        if(p.region) bucket.regions.add(p.region);
+        bucket.projects.push({ project:p, stage });
+
+        for(const fr of FOCUS_ROLES){
+          const roleName = fr.roleName;
+          const roleDef  = rolesByName[roleName];
+          if(!roleDef) continue;
+
+          const slots =
+            (prrMap[p.id] && prrMap[p.id][roleName] != null)
+              ? prrMap[p.id][roleName]
+              : fr.defaultSlots;
+
+          if(!slots) continue;
+
+          let demandPerProject = 0;
+          switch(stage){
+            case "eng_perm":
+              demandPerProject = Number(roleDef.eng_perm_demand || 0); break;
+            case "epc_proc":
+              demandPerProject = Number(roleDef.epc_proc_demand || 0); break;
+            case "epc_eng":
+              demandPerProject = Number(roleDef.epc_eng_demand || 0); break;
+            case "construction":
+              demandPerProject = Number(roleDef.construction_demand || 0); break;
+            case "commissioning":
+              demandPerProject = Number(roleDef.commissioning_demand || 0); break;
+          }
+          const add = demandPerProject * slots;
+          if(!bucket.roleDemand[roleName]) bucket.roleDemand[roleName] = 0;
+          bucket.roleDemand[roleName] += add;
+        }
       }
     }
+
     return months;
   }
 
-  function getOverlapDays(aStart, aEnd, bStart, bEnd){
-    const start = aStart > bStart ? aStart : bStart;
-    const end   = aEnd < bEnd ? aEnd : bEnd;
-    const ms    = end - start;
-    if(ms <= 0) return 0;
-    return ms / (1000*60*60*24);
-  }
+  function renderMonthlyTable(){
+    const months = computeMonthlyDemand();
+    const year = yearFilter.value;
+    monthlyTableBody.innerHTML = "";
 
-  function getSlotsForProjectRole(projectId, roleName){
-    const specific = projectRoleRequirements.find(
-      r => r.project_id === projectId && r.role_name === roleName
-    );
-    if(specific) return Number(specific.slots || 0);
-    const std = projectRoleStandard.find(s => s.role_name === roleName);
-    return std ? Number(std.default_slots || 0) : 0;
-  }
-
-  function renderDemandTable(){
-    demandTableBody.innerHTML = "";
-
-    if(!projects.length || !roles.length){
-      demandTableBody.innerHTML = `<tr><td colspan="11" class="muted">No data</td></tr>`;
+    if(!year){
+      monthContextLabel.textContent = "Select year";
+      monthDetailDiv.textContent = "Select a year to compute monthly demand.";
       return;
     }
+    monthContextLabel.textContent = `Year ${year}`;
 
-    const months = buildMonths();
-    if(!months.length){
-      demandTableBody.innerHTML = `<tr><td colspan="11" class="muted">No months in range</td></tr>`;
-      return;
+    for(const m of months){
+      const tr = document.createElement("tr");
+      tr.classList.add("clickable-row");
+      tr.dataset.monthIndex = String(m.monthIndex);
+
+      const cells = [];
+      cells.push(`<td>${m.label}</td>`);
+
+      for(const fr of FOCUS_ROLES){
+        const v = m.roleDemand[fr.roleName] || 0;
+        cells.push(`<td>${v.toFixed(1)}</td>`);
+      }
+
+      cells.push(`<td>${m.projectCount}</td>`);
+      cells.push(`<td>${m.totalMw.toFixed(1)}</td>`);
+      cells.push(`<td>${m.pvCount}</td>`);
+      cells.push(`<td>${m.bessCount}</td>`);
+      cells.push(`<td>${m.regions.size}</td>`);
+
+      tr.innerHTML = cells.join("");
+      tr.addEventListener("click", () => showMonthDetail(m));
+      monthlyTableBody.appendChild(tr);
     }
 
-    const projSubset = filteredProjects(); // respeta region + project filter
-    const rowsHtml = [];
+    if(months.length){
+      monthDetailDiv.textContent =
+        "Click any row above to see detailed list of projects active in that month.";
+    } else {
+      monthDetailDiv.textContent = "No data for selected filters/year.";
+    }
+  }
 
-    for(const month of months){
-      const projectsSet = new Set();
-      const regionsSet  = new Set();
-      let totalMW = 0;
-      const roleDemand = {};
-      for(const r of KEY_ROLES) roleDemand[r] = 0;
+  function showMonthDetail(monthData){
+    if(!monthData.projects.length){
+      monthDetailDiv.textContent = `No projects active in ${monthData.label} ${monthData.year} for current filters.`;
+      return;
+    }
+    let html = `
+      <div class="pill">
+        <span><strong>${monthData.label} ${monthData.year}</strong></span>
+        <span>${monthData.projectCount} projects</span>
+        <span>${monthData.totalMw.toFixed(1)} MW</span>
+        <span>${monthData.regions.size} regions</span>
+        <span>${monthData.pvCount} PV · ${monthData.bessCount} BESS</span>
+      </div>
+      <div class="subtable">
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Region</th>
+              <th>Country</th>
+              <th>Tech</th>
+              <th>MW</th>
+              <th>Stage</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
 
-      for(const p of projSubset){
-        const stages = getProjectStages(p);
-        if(!stages.length) continue;
-
-        let projectContributes = false;
-
-        for(const seg of stages){
-          const overlapDays = getOverlapDays(seg.start, seg.end, month.start, month.end);
-          if(overlapDays <= 0) continue;
-
-          projectContributes = true;
-          const fraction = overlapDays / month.days;
-          const prob = Number(p.probability || 1);
-
-          for(const roleName of KEY_ROLES){
-            const role = roleByName[roleName];
-            if(!role) continue;
-            const field = STAGE_FIELD_MAP[seg.key];
-            const stageDemand = Number(role[field] || 0); // FTE per project in that stage
-            if(!stageDemand) continue;
-
-            const slots = getSlotsForProjectRole(p.id, roleName);
-            if(!slots) continue;
-
-            roleDemand[roleName] += slots * stageDemand * prob * fraction;
-          }
-        }
-
-        if(projectContributes){
-          projectsSet.add(p.id);
-          if(p.region) regionsSet.add(p.region);
-          if(p.capacity_mw) totalMW += Number(p.capacity_mw);
-        }
-      }
-
-      if(projectsSet.size === 0){
-        // no proyectos en este mes → no mostramos la fila
-        continue;
-      }
-
-      const fmt = (v) => v ? v.toFixed(2) : "0.00";
-
-      rowsHtml.push(`
+    for(const item of monthData.projects){
+      const p = item.project;
+      const stageLabel = STAGE_LABELS[item.stage] || item.stage;
+      html += `
         <tr>
-          <td>${month.label}</td>
-          <td>${projectsSet.size}</td>
-          <td>${totalMW.toFixed(1)}</td>
-          <td>${regionsSet.size}</td>
-          <td>${fmt(roleDemand["PD"])}</td>
-          <td>${fmt(roleDemand["PM"])}</td>
-          <td>${fmt(roleDemand["Permitting Manager"])}</td>
-          <td>${fmt(roleDemand["Site Manager"])}</td>
-          <td>${fmt(roleDemand["Quality Manager"])}</td>
-          <td>${fmt(roleDemand["H&S Manager"])}</td>
-          <td>${fmt(roleDemand["Project Engineer"])}</td>
+          <td>${p.project_code || ""}</td>
+          <td>${p.project_name || ""}</td>
+          <td>${p.region || ""}</td>
+          <td>${p.country || ""}</td>
+          <td>${p.technology || ""}</td>
+          <td>${p.capacity_mw ?? ""}</td>
+          <td>${stageLabel}</td>
         </tr>
-      `);
+      `;
     }
 
-    if(!rowsHtml.length){
-      demandTableBody.innerHTML = `<tr><td colspan="11" class="muted">No active projects in selected filters.</td></tr>`;
-    }else{
-      demandTableBody.innerHTML = rowsHtml.join("");
-    }
-
-    const yLabel = yearFilter.value === "all" ? "All years" : yearFilter.value;
-    const rLabel = regionFilter.value === "all" ? "All regions" : regionFilter.value;
-    demandLabel.textContent = `${yLabel} · ${rLabel}`;
+    html += "</tbody></table></div>";
+    monthDetailDiv.innerHTML = html;
   }
 
-  // ---------- EVENTOS ----------
-
-  regionFilter.addEventListener("change", () => {
-    updateProjectFilter();
-    renderSummary();
-    renderRolesTable();
-    renderProjectsTable();
-    renderDemandTable();
-  });
-
-  yearFilter.addEventListener("change", () => {
-    renderDemandTable();
-  });
-
-  projectFilter.addEventListener("change", () => {
-    renderSummary();
-    renderProjectsTable();
-    renderDemandTable();
-  });
+  // Eventos de filtros
+  for(const el of [regionFilter, countryFilter, techFilter, projectFilter, yearFilter]){
+    el.addEventListener("change", () => {
+      renderSummary();
+      renderRolesTable();
+      renderProjectsTable();
+      renderMonthlyTable();
+    });
+  }
 
   refreshBtn.addEventListener("click", loadData);
 
-  // initial load
+  // Carga inicial
   loadData();
 </script>
 </body>
