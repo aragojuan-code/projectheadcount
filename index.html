@@ -72,16 +72,9 @@
       cursor:pointer;
     }
     main{
-      display:grid;
-      grid-template-columns:2fr 3fr;
-      grid-template-rows:auto auto auto;
+      display:flex;
+      flex-direction:column;
       gap:16px;
-    }
-    @media (max-width:980px){
-      main{
-        grid-template-columns:1fr;
-        grid-template-rows:auto;
-      }
     }
     .panel{
       background:rgba(15,23,42,.9);
@@ -137,58 +130,53 @@
     table{
       width:100%;
       border-collapse:collapse;
-      font-size:.78rem;
+      font-size:.76rem;
     }
     th,td{
-      padding:6px 4px;
-      text-align:left;
+      padding:6px 6px;
+      text-align:right;
       border-bottom:1px solid rgba(31,41,55,.8);
-      vertical-align:middle;
+      white-space:nowrap;
+    }
+    th:first-child, td:first-child{
+      text-align:left;
     }
     th{
-      font-size:.72rem;
+      font-size:.7rem;
       text-transform:uppercase;
       letter-spacing:.06em;
       color:var(--muted);
       position:sticky;
       top:0;
-      background:rgba(15,23,42,.98);
+      background:rgba(15,23,42,0.98);
       z-index:1;
     }
     tbody tr:nth-child(even){
       background-color:rgba(15,23,42,.7);
     }
     tbody tr:hover{
-      background-color:rgba(55,65,81,.8);
+      background-color:rgba(30,64,175,.55);
       cursor:pointer;
     }
-    .muted{ color:var(--muted); }
+    .muted{color:var(--muted);}
+    .placeholder{
+      font-size:.8rem;
+      color:var(--muted);
+      padding:8px 2px 2px;
+    }
     .pill{
       padding:2px 8px;
       border-radius:999px;
       background:rgba(15,23,42,.9);
       border:1px solid rgba(148,163,184,.4);
       font-size:.7rem;
-      display:inline-flex;
-      gap:4px;
-      align-items:center;
     }
-    .pill strong{ color:var(--accent); }
-    .placeholder{
-      font-size:.8rem;
-      color:var(--muted);
-      padding:8px 2px 2px;
-    }
-    .subtable{
-      margin-top:8px;
-      max-height:220px;
+    .pill strong{color:var(--accent);}
+    .pill.sm{font-size:.68rem;padding:2px 6px;}
+    .pill.red{border-color:var(--danger);color:#fecaca;}
+    .scroll-x{
       overflow:auto;
-    }
-    .clickable-row{
-      cursor:pointer;
-    }
-    .clickable-row:hover{
-      background-color:rgba(55,65,81,.9);
+      max-height:420px;
     }
   </style>
 </head>
@@ -197,7 +185,7 @@
   <header>
     <div class="title-block">
       <h1>Project Headcount – Command Center</h1>
-      <div class="subtitle">Supabase · Roles · People · Projects · 2025–2027</div>
+      <div class="subtitle">Supabase · Monthly demand · Focus roles · 2025–2027</div>
     </div>
     <div class="filters">
       <select id="regionFilter">
@@ -209,18 +197,15 @@
       <select id="techFilter">
         <option value="all">All technologies</option>
       </select>
-      <select id="projectFilter">
-        <option value="all">All projects</option>
-      </select>
       <select id="yearFilter">
-        <option value="">Year…</option>
+        <option value="all">All years</option>
       </select>
       <button class="primary" id="refreshBtn">Refresh data</button>
     </div>
   </header>
 
   <main>
-    <!-- SUMMARY -->
+    <!-- OVERVIEW -->
     <section class="panel">
       <h2>
         Overview
@@ -230,535 +215,463 @@
         <div class="card">
           <div class="card-label">Roles</div>
           <div class="card-value" id="summaryRoles">–</div>
-          <div class="card-extra muted" id="summaryRolesExtra">from roles_capacity</div>
+          <div class="card-extra muted">from roles_capacity</div>
         </div>
         <div class="card">
           <div class="card-label">People</div>
           <div class="card-value" id="summaryPeople">–</div>
-          <div class="card-extra muted" id="summaryPeopleExtra">internal + OE</div>
+          <div class="card-extra muted">internal + OE</div>
         </div>
         <div class="card">
           <div class="card-label">Projects</div>
           <div class="card-value" id="summaryProjects">–</div>
-          <div class="card-extra muted" id="summaryProjectsExtra">filtered set</div>
+          <div class="card-extra muted" id="summaryProjectsExtra">filtered by region / country / tech</div>
         </div>
       </div>
       <div class="placeholder">
-        Later: quick alerts like <strong>“PM overbooked in IT Q2 2026”</strong>, etc.
+        Monthly demand below is computed from: project dates × stage mapping × Role Stage Demand Matrix.
       </div>
     </section>
 
-    <!-- ROLES / CAPACITY TABLE -->
+    <!-- MONTHLY DEMAND -->
     <section class="panel">
       <h2>
-        Roles capacity by region
-        <span class="label"><span id="regionLabel">All regions</span></span>
+        Monthly demand (FTE) – focus roles
+        <span class="label" id="monthlyLabel">All years · All regions · All countries · All tech</span>
       </h2>
-      <div style="max-height:260px;overflow:auto;">
-        <table id="rolesTable">
-          <thead>
-            <tr>
-              <th>Role</th>
-              <th>Dept</th>
-              <th>Max alloc</th>
-              <th>Internal FTE</th>
-              <th>OE FTE</th>
-              <th>Total FTE</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- PROJECTS TABLE -->
-    <section class="panel">
-      <h2>
-        Projects
-        <span class="label">2025–2027 window</span>
-      </h2>
-      <div style="max-height:260px;overflow:auto;">
-        <table id="projectsTable">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Region</th>
-              <th>Country</th>
-              <th>Tech</th>
-              <th>Capacity MW</th>
-              <th>Status</th>
-              <th>Start constr.</th>
-              <th>PAC</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="placeholder">
-        Later here: mini-Gantt, filters by year/quarter, click → open org chart view.
-      </div>
-    </section>
-
-    <!-- MONTHLY DEMAND + DETAIL -->
-    <section class="panel">
-      <h2>
-        Monthly demand (FTE) – Focus roles
-        <span class="label"><span id="monthContextLabel">Select year</span></span>
-      </h2>
-      <div style="max-height:220px;overflow:auto;">
+      <div class="scroll-x">
         <table id="monthlyTable">
           <thead>
             <tr>
               <th>Month</th>
+              <th>Projects</th>
+              <th>MW</th>
+              <th>Regions</th>
+              <th>Countries</th>
+              <th>PV proj</th>
+              <th>BESS proj</th>
+              <th>#E&amp;P</th>
+              <th>#EPC-Proc</th>
+              <th>#EPC-Eng</th>
+              <th>#Constr.</th>
+              <th>#Comm.</th>
               <th>PD</th>
               <th>PM</th>
-              <th>Perm.</th>
+              <th>Perm. Mgr</th>
+              <th>Proj Eng</th>
+              <th>Constr. PM</th>
               <th>Site Mgr</th>
               <th>Qual. Mgr</th>
               <th>H&amp;S Mgr</th>
-              <th>Proj Eng</th>
-              <th>Constr. Mgr</th>
-              <th>#Proj</th>
-              <th>MW</th>
-              <th>PV proj</th>
-              <th>BESS proj</th>
-              <th>#Regions</th>
+              <th>LTA Mgr</th>
+              <th>P&amp;C Analyst</th>
+              <th>Scheduler</th>
+              <th>Budget Ctrl.</th>
             </tr>
           </thead>
-          <tbody></tbody>
+          <tbody>
+            <!-- filled by JS -->
+          </tbody>
         </table>
       </div>
-      <div class="placeholder" id="monthDetail">
-        Click a month row to see the list of projects active in that month, their stage, MW, region, etc.
+      <div class="placeholder">
+        Click any month row to see the list of projects active in that month, with their stage and details.
       </div>
     </section>
-  </main>
-</div>
 
-<!-- Supabase JS -->
-<script type="module">
-  // Usa tu URL y anon key (publishable) de Supabase
-  const SUPABASE_URL = "https://ascfisqbwvkfdmcskslr.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_KLPwFBTL34aDaQJ7XIHBCA_K8San_bV";
-
-  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // Filtros
-  const regionFilter  = document.getElementById("regionFilter");
-  const countryFilter = document.getElementById("countryFilter");
-  const techFilter    = document.getElementById("techFilter");
-  const projectFilter = document.getElementById("projectFilter");
-  const yearFilter    = document.getElementById("yearFilter");
-  const refreshBtn    = document.getElementById("refreshBtn");
-  const regionLabel   = document.getElementById("regionLabel");
-  const monthContextLabel = document.getElementById("monthContextLabel");
-
-  // Tablas / summary
-  const rolesTableBody    = document.querySelector("#rolesTable tbody");
-  const projectsTableBody = document.querySelector("#projectsTable tbody");
-  const monthlyTableBody  = document.querySelector("#monthlyTable tbody");
-  const monthDetailDiv    = document.getElementById("monthDetail");
-
-  const summaryRoles    = document.getElementById("summaryRoles");
-  const summaryPeople   = document.getElementById("summaryPeople");
-  const summaryProjects = document.getElementById("summaryProjects");
-
-  // Datos en memoria
-  let roles = [];
-  let rolesByName = {};
-  let people = [];
-  let projects = [];
-  let projectRoleReq = [];   // project_role_requirements
-  let prrMap = {};           // { project_id : { role_name: slots } }
-
-  // Roles foco para demanda mensual
-  const FOCUS_ROLES = [
-    { roleName:"PD",                 label:"PD",          defaultSlots:1 },
-    { roleName:"PM",                 label:"PM",          defaultSlots:1 },
-    { roleName:"Permitting Manager", label:"Perm.",       defaultSlots:1 },
-    { roleName:"Site Manager",       label:"Site Mgr",    defaultSlots:2 },
-    { roleName:"Quality Manager",    label:"Qual. Mgr",   defaultSlots:1 },
-    { roleName:"H&S Manager",        label:"H&S Mgr",     defaultSlots:1 },
-    { roleName:"Project Engineer",   label:"Proj Eng",    defaultSlots:1 },
-    { roleName:"Head of Construction", label:"Constr. Mgr", defaultSlots:1 }
-  ];
-
-  const STAGE_LABELS = {
-    eng_perm: "Eng & Perm",
-    epc_proc: "EPC Proc",
-    epc_eng: "EPC Eng",
-    construction: "Construction",
-    commissioning: "Commissioning"
-  };
-
-  async function loadData(){
-    const [rolesRes, peopleRes, projectsRes, prrRes] = await Promise.all([
-      supabase.from("roles_capacity").select("*"),
-      supabase.from("people").select("*"),
-      supabase.from("projects").select("*"),
-      supabase.from("project_role_requirements").select("*")
-    ]);
-
-    if(rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
-    if(peopleRes.error)  console.error("people error", peopleRes.error);
-    if(projectsRes.error)console.error("projects error", projectsRes.error);
-    if(prrRes.error)     console.error("project_role_requirements error", prrRes.error);
-
-    roles    = rolesRes.data  || [];
-    people   = peopleRes.data || [];
-    projectRoleReq = prrRes.data || [];
-
-    // Mapa de roles por nombre
-    rolesByName = {};
-    for(const r of roles){
-      rolesByName[r.role_name] = r;
-    }
-
-    // Enriquecer proyectos con fechas JS
-    projects = (projectsRes.data || []).map(p => ({
-      ...p,
-      _pa:  p.permitting_approval_date      ? new Date(p.permitting_approval_date)      : null,
-      _tpd: p.tender_package_design_date    ? new Date(p.tender_package_design_date)    : null,
-      _fs:  p.financing_signing_date        ? new Date(p.financing_signing_date)        : null,
-      _cs:  p.construction_start_date       ? new Date(p.construction_start_date)       : null,
-      _mc:  p.mechanical_completion_date    ? new Date(p.mechanical_completion_date)    : null,
-      _pac: p.pac_date                      ? new Date(p.pac_date)                      : null
-    }));
-
-    // Mapa de slots por proyecto/rol
-    prrMap = {};
-    for(const row of projectRoleReq){
-      if(!prrMap[row.project_id]) prrMap[row.project_id] = {};
-      prrMap[row.project_id][row.role_name] = row.slots;
-    }
-
-    updateFiltersFromProjects();
-    renderSummary();
-    renderRolesTable();
-    renderProjectsTable();
-    renderMonthlyTable();
-  }
-
-  function updateFiltersFromProjects(){
-    const regions = new Set();
-    const countries = new Set();
-    const techs = new Set();
-    const years = new Set();
-
-    for(const p of projects){
-      if(p.region) regions.add(p.region);
-      if(p.country) countries.add(p.country);
-      if(p.technology) techs.add(p.technology);
-
-      const dates = [p.permitting_approval_date, p.tender_package_design_date,
-                     p.financing_signing_date, p.construction_start_date,
-                     p.mechanical_completion_date, p.pac_date];
-      for(const d of dates){
-        if(d){
-          const y = new Date(d).getFullYear();
-          years.add(y);
-        }
-      }
-    }
-
-    regionFilter.innerHTML =
-      '<option value="all">All regions</option>' +
-      Array.from(regions).sort().map(r => `<option value="${r}">${r}</option>`).join("");
-
-    countryFilter.innerHTML =
-      '<option value="all">All countries</option>' +
-      Array.from(countries).sort().map(c => `<option value="${c}">${c}</option>`).join("");
-
-    techFilter.innerHTML =
-      '<option value="all">All technologies</option>' +
-      Array.from(techs).sort().map(t => `<option value="${t}">${t}</option>`).join("");
-
-    projectFilter.innerHTML =
-      '<option value="all">All projects</option>' +
-      projects.map(p => `<option value="${p.id}">${p.project_code || p.project_name}</option>`).join("");
-
-    const yearsArr = Array.from(years).sort();
-    yearFilter.innerHTML =
-      '<option value="">Year…</option>' +
-      yearsArr.map(y => `<option value="${y}">${y}</option>`).join("");
-
-    if(!yearFilter.value && yearsArr.length){
-      yearFilter.value = yearsArr[0];
-    }
-  }
-
-  function getFilteredProjects(){
-    const r = regionFilter.value;
-    const c = countryFilter.value;
-    const t = techFilter.value;
-    const pid = projectFilter.value;
-
-    return projects.filter(p => {
-      if(r !== "all" && p.region !== r) return false;
-      if(c !== "all" && p.country !== c) return false;
-      if(t !== "all" && p.technology !== t) return false;
-      if(pid !== "all" && p.id !== pid) return false;
-      return true;
-    });
-  }
-
-  function filteredPeople(){
-    const r = regionFilter.value;
-    if(r === "all") return people;
-    return people.filter(p => p.region === r);
-  }
-
-  function renderSummary(){
-    const projs = getFilteredProjects();
-    summaryRoles.textContent    = roles.length;
-    summaryPeople.textContent   = people.length;
-    summaryProjects.textContent = projs.length;
-    regionLabel.textContent = regionFilter.value === "all" ? "All regions" : regionFilter.value;
-  }
-
-  function renderRolesTable(){
-    const regionPeople = filteredPeople();
-
-    const agg = {};
-    for(const person of regionPeople){
-      const key = person.role_name;
-      if(!agg[key]) agg[key] = { internal:0, oe:0, external:0 };
-      const type = person.type || "internal";
-      agg[key][type] += Number(person.fte_base || 0);
-    }
-
-    rolesTableBody.innerHTML = "";
-    for(const role of roles){
-      const rowAgg = agg[role.role_name] || { internal:0, oe:0, external:0 };
-      const internalFte = rowAgg.internal.toFixed(2);
-      const oeFte       = rowAgg.oe.toFixed(2);
-      const totalFte    = (rowAgg.internal + rowAgg.oe + rowAgg.external).toFixed(2);
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${role.role_name}</td>
-        <td class="muted">${role.department}</td>
-        <td>${Number(role.max_project_allocation || 0).toFixed(2)}</td>
-        <td>${internalFte}</td>
-        <td>${oeFte}</td>
-        <td>${totalFte}</td>
-      `;
-      rolesTableBody.appendChild(tr);
-    }
-  }
-
-  function renderProjectsTable(){
-    const rows = getFilteredProjects();
-    projectsTableBody.innerHTML = "";
-    for(const p of rows){
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${p.project_code || ""}</td>
-        <td>${p.project_name || ""}</td>
-        <td>${p.region || ""}</td>
-        <td>${p.country || ""}</td>
-        <td>${p.technology || ""}</td>
-        <td>${p.capacity_mw ?? ""}</td>
-        <td><span class="pill"><strong>${p.status || ""}</strong></span></td>
-        <td>${p.construction_start_date || ""}</td>
-        <td>${p.pac_date || ""}</td>
-      `;
-      projectsTableBody.appendChild(tr);
-    }
-  }
-
-  function getStageForDate(project, date){
-    const { _pa, _tpd, _fs, _cs, _mc, _pac } = project;
-    if(!_pa || !_pac) return null;
-    if(date < _pa || date > _pac) return null;
-
-    if(_tpd && date < _tpd) return "eng_perm";
-    if(_fs  && date < _fs)  return "epc_proc";
-    if(_cs  && date < _cs)  return "epc_eng";
-    if(_mc  && date < _mc)  return "construction";
-    return "commissioning";
-  }
-
-  function computeMonthlyDemand(){
-    const year = parseInt(yearFilter.value,10);
-    if(!year) return [];
-
-    const months = [];
-    for(let m=0; m<12; m++){
-      const label = new Date(year, m, 1).toLocaleString("en",{month:"short"});
-      months.push({
-        year,
-        monthIndex:m,
-        label,
-        roleDemand:{},          // role_name -> FTE
-        projectCount:0,
-        totalMw:0,
-        pvCount:0,
-        bessCount:0,
-        regions:new Set(),
-        projects:[]             // { project, stage }
-      });
-    }
-
-    const projs = getFilteredProjects();
-
-    for(const p of projs){
-      for(let m=0; m<12; m++){
-        const midMonth = new Date(year, m, 15);
-        const stage = getStageForDate(p, midMonth);
-        if(!stage) continue;
-
-        const bucket = months[m];
-        bucket.projectCount += 1;
-        bucket.totalMw += Number(p.capacity_mw || 0);
-        if(p.technology === "PV")   bucket.pvCount += 1;
-        if(p.technology === "BESS") bucket.bessCount += 1;
-        if(p.region) bucket.regions.add(p.region);
-        bucket.projects.push({ project:p, stage });
-
-        for(const fr of FOCUS_ROLES){
-          const roleName = fr.roleName;
-          const roleDef  = rolesByName[roleName];
-          if(!roleDef) continue;
-
-          const slots =
-            (prrMap[p.id] && prrMap[p.id][roleName] != null)
-              ? prrMap[p.id][roleName]
-              : fr.defaultSlots;
-
-          if(!slots) continue;
-
-          let demandPerProject = 0;
-          switch(stage){
-            case "eng_perm":
-              demandPerProject = Number(roleDef.eng_perm_demand || 0); break;
-            case "epc_proc":
-              demandPerProject = Number(roleDef.epc_proc_demand || 0); break;
-            case "epc_eng":
-              demandPerProject = Number(roleDef.epc_eng_demand || 0); break;
-            case "construction":
-              demandPerProject = Number(roleDef.construction_demand || 0); break;
-            case "commissioning":
-              demandPerProject = Number(roleDef.commissioning_demand || 0); break;
-          }
-          const add = demandPerProject * slots;
-          if(!bucket.roleDemand[roleName]) bucket.roleDemand[roleName] = 0;
-          bucket.roleDemand[roleName] += add;
-        }
-      }
-    }
-
-    return months;
-  }
-
-  function renderMonthlyTable(){
-    const months = computeMonthlyDemand();
-    const year = yearFilter.value;
-    monthlyTableBody.innerHTML = "";
-
-    if(!year){
-      monthContextLabel.textContent = "Select year";
-      monthDetailDiv.textContent = "Select a year to compute monthly demand.";
-      return;
-    }
-    monthContextLabel.textContent = `Year ${year}`;
-
-    for(const m of months){
-      const tr = document.createElement("tr");
-      tr.classList.add("clickable-row");
-      tr.dataset.monthIndex = String(m.monthIndex);
-
-      const cells = [];
-      cells.push(`<td>${m.label}</td>`);
-
-      for(const fr of FOCUS_ROLES){
-        const v = m.roleDemand[fr.roleName] || 0;
-        cells.push(`<td>${v.toFixed(1)}</td>`);
-      }
-
-      cells.push(`<td>${m.projectCount}</td>`);
-      cells.push(`<td>${m.totalMw.toFixed(1)}</td>`);
-      cells.push(`<td>${m.pvCount}</td>`);
-      cells.push(`<td>${m.bessCount}</td>`);
-      cells.push(`<td>${m.regions.size}</td>`);
-
-      tr.innerHTML = cells.join("");
-      tr.addEventListener("click", () => showMonthDetail(m));
-      monthlyTableBody.appendChild(tr);
-    }
-
-    if(months.length){
-      monthDetailDiv.textContent =
-        "Click any row above to see detailed list of projects active in that month.";
-    } else {
-      monthDetailDiv.textContent = "No data for selected filters/year.";
-    }
-  }
-
-  function showMonthDetail(monthData){
-    if(!monthData.projects.length){
-      monthDetailDiv.textContent = `No projects active in ${monthData.label} ${monthData.year} for current filters.`;
-      return;
-    }
-    let html = `
-      <div class="pill">
-        <span><strong>${monthData.label} ${monthData.year}</strong></span>
-        <span>${monthData.projectCount} projects</span>
-        <span>${monthData.totalMw.toFixed(1)} MW</span>
-        <span>${monthData.regions.size} regions</span>
-        <span>${monthData.pvCount} PV · ${monthData.bessCount} BESS</span>
-      </div>
-      <div class="subtable">
-        <table>
+    <!-- MONTH DETAIL -->
+    <section class="panel">
+      <h2>
+        Month details
+        <span class="label" id="monthDetailLabel">Select a month in the table above</span>
+      </h2>
+      <div class="scroll-x">
+        <table id="monthProjectsTable">
           <thead>
             <tr>
-              <th>Code</th>
+              <th>Project</th>
               <th>Name</th>
               <th>Region</th>
               <th>Country</th>
               <th>Tech</th>
               <th>MW</th>
               <th>Stage</th>
+              <th>Permitting</th>
+              <th>Tender Pkg</th>
+              <th>Financing</th>
+              <th>Start Constr.</th>
+              <th>Mech. Compl.</th>
+              <th>PAC</th>
             </tr>
           </thead>
           <tbody>
-    `;
+            <!-- filled by JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="placeholder">
+        Here you’ll see, for the selected month, which projects are active, in which stage, and basic info (region, tech, MW).
+      </div>
+    </section>
+  </main>
+</div>
 
-    for(const item of monthData.projects){
-      const p = item.project;
-      const stageLabel = STAGE_LABELS[item.stage] || item.stage;
-      html += `
-        <tr>
-          <td>${p.project_code || ""}</td>
-          <td>${p.project_name || ""}</td>
-          <td>${p.region || ""}</td>
-          <td>${p.country || ""}</td>
-          <td>${p.technology || ""}</td>
-          <td>${p.capacity_mw ?? ""}</td>
-          <td>${stageLabel}</td>
-        </tr>
-      `;
-    }
+<!-- Supabase JS + logic -->
+<script type="module">
+  // ⚠️ Rellena estos dos valores con los de tu proyecto:
+  const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+  const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
 
-    html += "</tbody></table></div>";
-    monthDetailDiv.innerHTML = html;
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // DOM refs
+  const regionFilter  = document.getElementById("regionFilter");
+  const countryFilter = document.getElementById("countryFilter");
+  const techFilter    = document.getElementById("techFilter");
+  const yearFilter    = document.getElementById("yearFilter");
+  const refreshBtn    = document.getElementById("refreshBtn");
+
+  const summaryRoles    = document.getElementById("summaryRoles");
+  const summaryPeople   = document.getElementById("summaryPeople");
+  const summaryProjects = document.getElementById("summaryProjects");
+  const summaryProjectsExtra = document.getElementById("summaryProjectsExtra");
+
+  const monthlyLabel     = document.getElementById("monthlyLabel");
+  const monthlyTableBody = document.querySelector("#monthlyTable tbody");
+
+  const monthDetailLabel  = document.getElementById("monthDetailLabel");
+  const monthProjectsBody = document.querySelector("#monthProjectsTable tbody");
+
+  // Data in memory
+  let roles = [];
+  let people = [];
+  let projects = [];
+
+  // Roles que queremos ver en la tabla mensual
+  const FOCUS_ROLES = [
+    "PD",
+    "PM",
+    "Permitting Manager",
+    "Project Engineer",
+    "Construction PM",
+    "Site Manager",
+    "Quality Manager",
+    "H&S Manager",
+    "LTA Manager",
+    "P&C Analyst",
+    "Scheduler",
+    "Budget Controller"
+  ];
+
+  // Map stage -> nombre de campo de demanda en roles_capacity
+  const STAGE_DEMAND_FIELDS = {
+    eng_perm:      "eng_perm_demand",
+    epc_proc:      "epc_proc_demand",
+    epc_eng:       "epc_eng_demand",
+    construction:  "construction_demand",
+    commissioning: "commissioning_demand"
+  };
+
+  // Helpers fechas
+  const parseDate = (value) => value ? new Date(value + "T00:00:00") : null;
+  const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  const monthLabel = (d) => d.toLocaleDateString("en-GB",{year:"numeric",month:"short"});
+
+  // Devuelve los intervalos de etapas para un proyecto
+  function getProjectStages(p){
+    const pa  = parseDate(p.permitting_approval_date);
+    const tpd = parseDate(p.tender_package_design_date);
+    const fs  = parseDate(p.financing_signing_date);
+    const cs  = parseDate(p.construction_start_date);
+    const mc  = parseDate(p.mechanical_completion_date);
+    const pac = parseDate(p.pac_date);
+
+    const stages = [];
+    if (pa && tpd) stages.push({stage:"eng_perm", start:pa, end:tpd});
+    if (tpd && fs) stages.push({stage:"epc_proc", start:tpd, end:fs});
+    if (fs && cs)  stages.push({stage:"epc_eng",  start:fs,  end:cs});
+    if (cs && mc)  stages.push({stage:"construction", start:cs, end:mc});
+    if (mc && pac) stages.push({stage:"commissioning", start:mc, end:pac});
+    return stages;
   }
 
-  // Eventos de filtros
-  for(const el of [regionFilter, countryFilter, techFilter, projectFilter, yearFilter]){
-    el.addEventListener("change", () => {
-      renderSummary();
-      renderRolesTable();
-      renderProjectsTable();
-      renderMonthlyTable();
+  // Devuelve en qué stage está un proyecto en un mes concreto (o null)
+  function getStageForProjectAtMonth(p, monthDate){
+    const stages = getProjectStages(p);
+    if (!stages.length) return null;
+    const mYear = monthDate.getFullYear();
+    const mMonth = monthDate.getMonth();
+    for (const st of stages){
+      // recorre meses del intervalo de la etapa
+      const d = new Date(st.start.getFullYear(), st.start.getMonth(), 1);
+      while (d < st.end){
+        if (d.getFullYear() === mYear && d.getMonth() === mMonth){
+          return st.stage;
+        }
+        d.setMonth(d.getMonth()+1);
+      }
+    }
+    return null;
+  }
+
+  async function loadData(){
+    const [rolesRes, peopleRes, projectsRes] = await Promise.all([
+      supabase.from("roles_capacity").select("*"),
+      supabase.from("people").select("*"),
+      supabase.from("projects").select("*")
+    ]);
+
+    if (rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
+    if (peopleRes.error)  console.error("people error", peopleRes.error);
+    if (projectsRes.error)console.error("projects error", projectsRes.error);
+
+    roles    = rolesRes.data  || [];
+    people   = peopleRes.data || [];
+    projects = projectsRes.data || [];
+
+    buildFilterOptions();
+    renderSummary();
+    buildAndRenderMonthly();
+  }
+
+  function buildFilterOptions(){
+    // regiones
+    const regions = Array.from(new Set(projects.map(p => p.region).filter(Boolean))).sort();
+    regionFilter.innerHTML = '<option value="all">All regions</option>' +
+      regions.map(r => `<option value="${r}">${r}</option>`).join("");
+
+    // países
+    const countries = Array.from(new Set(projects.map(p => p.country).filter(Boolean))).sort();
+    countryFilter.innerHTML = '<option value="all">All countries</option>' +
+      countries.map(c => `<option value="${c}">${c}</option>`).join("");
+
+    // tecnologías
+    const techs = Array.from(new Set(projects.map(p => p.technology).filter(Boolean))).sort();
+    techFilter.innerHTML = '<option value="all">All technologies</option>' +
+      techs.map(t => `<option value="${t}">${t}</option>`).join("");
+
+    // años (a partir de las fechas de proyecto)
+    const yearsSet = new Set();
+    for (const p of projects){
+      const dates = [
+        p.permitting_approval_date,
+        p.tender_package_design_date,
+        p.financing_signing_date,
+        p.construction_start_date,
+        p.mechanical_completion_date,
+        p.pac_date
+      ];
+      for (const v of dates){
+        if (!v) continue;
+        const y = Number(v.slice(0,4));
+        if (!Number.isNaN(y)) yearsSet.add(y);
+      }
+    }
+    const years = Array.from(yearsSet).sort((a,b) => a-b);
+    yearFilter.innerHTML = '<option value="all">All years</option>' +
+      years.map(y => `<option value="${y}">${y}</option>`).join("");
+  }
+
+  function filteredProjects(){
+    return projects.filter(p => {
+      if (regionFilter.value !== "all" && p.region !== regionFilter.value) return false;
+      if (countryFilter.value !== "all" && p.country !== countryFilter.value) return false;
+      if (techFilter.value !== "all" && p.technology !== techFilter.value) return false;
+      return true;
     });
   }
 
+  function renderSummary(){
+    summaryRoles.textContent  = roles.length;
+    summaryPeople.textContent = people.length;
+    summaryProjects.textContent = filteredProjects().length;
+    summaryProjectsExtra.textContent = "filtered by region / country / tech";
+  }
+
+  function buildAndRenderMonthly(){
+    const filtered = filteredProjects();
+    monthlyTableBody.innerHTML = "";
+    monthProjectsBody.innerHTML = "";
+    monthDetailLabel.textContent = "Select a month in the table above";
+
+    if (!filtered.length) return;
+
+    // index roles por nombre
+    const roleByName = {};
+    for (const r of roles){
+      roleByName[r.role_name] = r;
+    }
+
+    // determinar rango de meses
+    let minDate = null;
+    let maxDate = null;
+    for (const p of filtered){
+      const dates = [
+        p.permitting_approval_date,
+        p.tender_package_design_date,
+        p.financing_signing_date,
+        p.construction_start_date,
+        p.mechanical_completion_date,
+        p.pac_date
+      ].map(parseDate).filter(Boolean);
+      for (const d of dates){
+        if (!minDate || d < minDate) minDate = d;
+        if (!maxDate || d > maxDate) maxDate = d;
+      }
+    }
+    if (!minDate || !maxDate) return;
+
+    // año filtrado
+    const yearVal = yearFilter.value;
+    const monthly = {}; // key -> agg
+
+    // recorre proyectos y agrega su contribución por mes
+    for (const p of filtered){
+      const stages = getProjectStages(p);
+      if (!stages.length) continue;
+
+      for (const st of stages){
+        // arrancamos desde el primer día de mes de start
+        const cursor = new Date(st.start.getFullYear(), st.start.getMonth(), 1);
+        while (cursor < st.end){
+          const y = cursor.getFullYear();
+          if (yearVal !== "all" && String(y) !== yearVal){
+            cursor.setMonth(cursor.getMonth()+1);
+            continue;
+          }
+          const key = monthKey(cursor);
+          if (!monthly[key]){
+            monthly[key] = {
+              date: new Date(cursor.getTime()),
+              totalProjects: new Set(),
+              totalMW: 0,
+              regions: new Set(),
+              countries: new Set(),
+              pvProjects: new Set(),
+              bessProjects: new Set(),
+              stageCounts: {
+                eng_perm:0, epc_proc:0, epc_eng:0, construction:0, commissioning:0
+              },
+              rolesDemand: {}
+            };
+            for (const r of FOCUS_ROLES){
+              monthly[key].rolesDemand[r] = 0;
+            }
+          }
+          const bucket = monthly[key];
+          bucket.totalProjects.add(p.id);
+          bucket.totalMW += Number(p.capacity_mw || 0);
+          if (p.region)   bucket.regions.add(p.region);
+          if (p.country)  bucket.countries.add(p.country);
+          if (p.technology === "PV")   bucket.pvProjects.add(p.id);
+          if (p.technology === "BESS") bucket.bessProjects.add(p.id);
+          bucket.stageCounts[st.stage]++;
+
+          // contribución de FTE para cada rol en esta etapa
+          for (const roleName of FOCUS_ROLES){
+            const rc = roleByName[roleName];
+            if (!rc) continue;
+            const field = STAGE_DEMAND_FIELDS[st.stage];
+            const demand = Number(rc[field] || 0);
+            bucket.rolesDemand[roleName] += demand;
+          }
+
+          cursor.setMonth(cursor.getMonth()+1);
+        }
+      }
+    }
+
+    const keys = Object.keys(monthly).sort(); // YYYY-MM
+    for (const key of keys){
+      const b = monthly[key];
+      const label = monthLabel(b.date);
+
+      const tr = document.createElement("tr");
+      tr.dataset.monthKey = key;
+      const rd = b.rolesDemand;
+
+      tr.innerHTML = `
+        <td style="text-align:left">${label}</td>
+        <td>${b.totalProjects.size}</td>
+        <td>${b.totalMW.toFixed(1)}</td>
+        <td>${b.regions.size}</td>
+        <td>${b.countries.size}</td>
+        <td>${b.pvProjects.size}</td>
+        <td>${b.bessProjects.size}</td>
+        <td>${b.stageCounts.eng_perm}</td>
+        <td>${b.stageCounts.epc_proc}</td>
+        <td>${b.stageCounts.epc_eng}</td>
+        <td>${b.stageCounts.construction}</td>
+        <td>${b.stageCounts.commissioning}</td>
+        <td>${rd["PD"].toFixed(2)}</td>
+        <td>${rd["PM"].toFixed(2)}</td>
+        <td>${rd["Permitting Manager"].toFixed(2)}</td>
+        <td>${rd["Project Engineer"].toFixed(2)}</td>
+        <td>${rd["Construction PM"].toFixed(2)}</td>
+        <td>${rd["Site Manager"].toFixed(2)}</td>
+        <td>${rd["Quality Manager"].toFixed(2)}</td>
+        <td>${rd["H&S Manager"].toFixed(2)}</td>
+        <td>${rd["LTA Manager"].toFixed(2)}</td>
+        <td>${rd["P&C Analyst"].toFixed(2)}</td>
+        <td>${rd["Scheduler"].toFixed(2)}</td>
+        <td>${rd["Budget Controller"].toFixed(2)}</td>
+      `;
+      tr.addEventListener("click", () => showMonthDetail(key));
+      monthlyTableBody.appendChild(tr);
+    }
+
+    const labYear = (yearVal === "all" ? "All years" : yearVal);
+    const labRegion   = regionFilter.value === "all" ? "All regions" : regionFilter.value;
+    const labCountry  = countryFilter.value === "all" ? "All countries" : countryFilter.value;
+    const labTech     = techFilter.value === "all" ? "All tech" : techFilter.value;
+    monthlyLabel.textContent = `${labYear} · ${labRegion} · ${labCountry} · ${labTech}`;
+  }
+
+  function showMonthDetail(monthKeyStr){
+    const [yStr, mStr] = monthKeyStr.split("-");
+    const dMonth = new Date(Number(yStr), Number(mStr)-1, 1);
+
+    const filtered = filteredProjects();
+    monthProjectsBody.innerHTML = "";
+
+    for (const p of filtered){
+      const stage = getStageForProjectAtMonth(p, dMonth);
+      if (!stage) continue;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td style="text-align:left">${p.project_code || ""}</td>
+        <td style="text-align:left">${p.project_name || ""}</td>
+        <td>${p.region || ""}</td>
+        <td>${p.country || ""}</td>
+        <td>${p.technology || ""}</td>
+        <td>${p.capacity_mw ?? ""}</td>
+        <td>${stage}</td>
+        <td>${p.permitting_approval_date || ""}</td>
+        <td>${p.tender_package_design_date || ""}</td>
+        <td>${p.financing_signing_date || ""}</td>
+        <td>${p.construction_start_date || ""}</td>
+        <td>${p.mechanical_completion_date || ""}</td>
+        <td>${p.pac_date || ""}</td>
+      `;
+      monthProjectsBody.appendChild(tr);
+    }
+
+    const label = dMonth.toLocaleDateString("en-GB",{year:"numeric",month:"long"});
+    monthDetailLabel.textContent = `Month: ${label} – ${filtered.length} projects in filter`;
+  }
+
+  // Eventos filtros
+  for (const el of [regionFilter, countryFilter, techFilter, yearFilter]){
+    el.addEventListener("change", () => {
+      renderSummary();
+      buildAndRenderMonthly();
+    });
+  }
   refreshBtn.addEventListener("click", loadData);
 
-  // Carga inicial
+  // carga inicial
   loadData();
 </script>
 </body>
