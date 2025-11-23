@@ -1075,23 +1075,27 @@
 
     // 🔹 calcular stage del proyecto en ese mes (si existe)
     const project = projects.find(p => p.id === projectId);
-    let stage = null;
+       let stage = null;
     if (project){
       const monthDate = new Date(year, monthIndex, 1);
       stage = getStageForProjectAtMonth(project, monthDate);
     }
 
-    // 🔹 payload completo: id + stage + demás columnas
+    // ⚠️ Aseguramos que stage nunca sea null: si no lo encontramos,
+    // usamos un valor por defecto del enum (ajusta si tu enum usa otros nombres)
+    const stageValue = stage || "eng_perm";
+
     const payload = {
-      id: crypto.randomUUID(),          // por si id es NOT NULL sin default
+      id: crypto.randomUUID(),          // por si id es NOT NULL
       project_id: projectId,
       person_id: personId,
       role_name: roleName,
-      stage: stage || null,             // si la columna es NOT NULL, asegúrate de tener valor válido
+      stage: stageValue,                // siempre un string válido
       fte_on_project: 1,
       start_date: startDate,
       end_date: endDate
     };
+
 
     const { data, error } = await supabase
       .from("assignments")
