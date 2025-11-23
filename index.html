@@ -179,7 +179,7 @@
       max-height:420px;
     }
 
-    /* === NUEVO: resumen por rol y overload en Month details === */
+    /* Month-detail role summary + overload */
     .month-roles-grid{
       display:grid;
       grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
@@ -217,6 +217,77 @@
     }
     .overload-list li{
       margin-bottom:2px;
+    }
+
+    /* Project staffing panel */
+    .project-staffing{
+      margin-top:10px;
+      border-top:1px solid rgba(30,64,175,.6);
+      padding-top:8px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      font-size:.75rem;
+    }
+    .project-staffing-header{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .project-staffing-header span{
+      font-size:.78rem;
+      color:var(--muted);
+    }
+    .project-roles-list{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .proj-role-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      align-items:flex-start;
+      justify-content:space-between;
+      border-radius:10px;
+      border:1px solid rgba(148,163,184,.4);
+      padding:6px 8px;
+      background:rgba(15,23,42,.8);
+    }
+    .proj-role-main{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      min-width:140px;
+    }
+    .proj-role-name{
+      font-weight:600;
+      font-size:.78rem;
+    }
+    .proj-role-meta{
+      font-size:.7rem;
+      color:var(--muted);
+    }
+    .proj-role-assigned{
+      font-size:.7rem;
+    }
+    .proj-role-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+      align-items:center;
+    }
+    .proj-role-actions select{
+      font-size:.72rem;
+      padding:4px 8px;
+    }
+    .proj-role-actions button{
+      font-size:.72rem;
+      padding:4px 10px;
+      border-radius:999px;
+      cursor:pointer;
     }
   </style>
 </head>
@@ -320,14 +391,14 @@
       </div>
     </section>
 
-    <!-- MONTH DETAIL -->
+    <!-- MONTH DETAIL + PROJECT STAFFING -->
     <section class="panel">
       <h2>
         Month details
         <span class="label" id="monthDetailLabel">Select a month in the table above</span>
       </h2>
 
-      <!-- NUEVO: resumen por rol y overload para el mes seleccionado -->
+      <!-- resumen por rol y overload -->
       <div id="monthRolesSummary" class="placeholder">
         Here you’ll see, for the selected month, need vs assigned FTE per role.
       </div>
@@ -335,6 +406,7 @@
         And here, any people overbooked in that month (FTE assigned &gt; FTE base).
       </div>
 
+      <!-- tabla de proyectos del mes -->
       <div class="scroll-x">
         <table id="monthProjectsTable">
           <thead>
@@ -360,8 +432,24 @@
           </tbody>
         </table>
       </div>
+
+      <!-- PROJECT STAFFING -->
+      <div class="project-staffing">
+        <div class="project-staffing-header">
+          <span>Project staffing – select a project to assign people to positions</span>
+          <div>
+            <select id="projectSelect">
+              <option value="">Select a month first</option>
+            </select>
+          </div>
+        </div>
+        <div id="projectRolesContainer" class="project-roles-list">
+          <div class="muted">Select a month above, then choose a project here or click on a project row.</div>
+        </div>
+      </div>
+
       <div class="placeholder">
-        Here you’ll see, for the selected month, which projects are active, in which stage, and basic info (region, tech, MW).
+        Project list shows which projects are active this month. In “Project staffing” you can assign people from the pool to each role; assignments are stored in the Supabase table <code>assignments</code>.
       </div>
     </section>
   </main>
@@ -369,7 +457,6 @@
 
 <!-- Supabase JS + logic -->
 <script type="module">
-  // ⚠️ Rellena estos dos valores con los de tu proyecto:
   const SUPABASE_URL = "https://ascfisqbwvkfdmcskslr.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_KLPwFBTL34aDaQJ7XIHBCA_K8San_bV";
 
@@ -396,16 +483,22 @@
   const monthRolesSummary  = document.getElementById("monthRolesSummary");
   const monthOverloadSummary = document.getElementById("monthOverloadSummary");
 
+  // project staffing refs
+  const projectSelect        = document.getElementById("projectSelect");
+  const projectRolesContainer = document.getElementById("projectRolesContainer");
+
   // Data in memory
   let roles = [];
   let people = [];
   let projects = [];
   let assignments = [];
+  let projectRoles = [];
+  let projectRoleStandard = [];
 
-  // buckets mensuales accesibles desde showMonthDetail
+  // buckets por mes
   let monthlyBuckets = {};
+  let currentMonthKey = null;
 
-  // Roles que queremos ver en la tabla mensual
   const FOCUS_ROLES = [
     "PD",
     "PM",
@@ -421,7 +514,6 @@
     "Budget Controller"
   ];
 
-  // Map stage -> nombre de campo de demanda en roles_capacity
   const STAGE_DEMAND_FIELDS = {
     eng_perm:      "eng_perm_demand",
     epc_proc:      "epc_proc_demand",
@@ -430,12 +522,10 @@
     commissioning: "commissioning_demand"
   };
 
-  // Helpers fechas
   const parseDate = (value) => value ? new Date(value + "T00:00:00") : null;
   const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
   const monthLabel = (d) => d.toLocaleDateString("en-GB",{year:"numeric",month:"short"});
 
-  // Devuelve los intervalos de etapas para un proyecto
   function getProjectStages(p){
     const pa  = parseDate(p.permitting_approval_date);
     const tpd = parseDate(p.tender_package_design_date);
@@ -453,7 +543,6 @@
     return stages;
   }
 
-  // Devuelve en qué stage está un proyecto en un mes concreto (o null)
   function getStageForProjectAtMonth(p, monthDate){
     const stages = getProjectStages(p);
     if (!stages.length) return null;
@@ -472,22 +561,29 @@
   }
 
   async function loadData(){
-    const [rolesRes, peopleRes, projectsRes, assignmentsRes] = await Promise.all([
-      supabase.from("roles_capacity").select("*"),
-      supabase.from("people").select("*"),
-      supabase.from("projects").select("*"),
-      supabase.from("assignments").select("*")
-    ]);
+    const [rolesRes, peopleRes, projectsRes, assignmentsRes, projRolesRes, projRoleStdRes] =
+      await Promise.all([
+        supabase.from("roles_capacity").select("*"),
+        supabase.from("people").select("*"),
+        supabase.from("projects").select("*"),
+        supabase.from("assignments").select("*"),
+        supabase.from("project_roles").select("*"),
+        supabase.from("project_role_standard").select("*")
+      ]);
 
     if (rolesRes.error)        console.error("roles_capacity error", rolesRes.error);
     if (peopleRes.error)       console.error("people error", peopleRes.error);
     if (projectsRes.error)     console.error("projects error", projectsRes.error);
     if (assignmentsRes.error)  console.error("assignments error", assignmentsRes.error);
+    if (projRolesRes.error)    console.error("project_roles error", projRolesRes.error);
+    if (projRoleStdRes.error)  console.error("project_role_standard error", projRoleStdRes.error);
 
     roles       = rolesRes.data        || [];
     people      = peopleRes.data       || [];
     projects    = projectsRes.data     || [];
     assignments = assignmentsRes.data  || [];
+    projectRoles = projRolesRes.data   || [];
+    projectRoleStandard = projRoleStdRes.data || [];
 
     buildFilterOptions();
     renderSummary();
@@ -495,22 +591,18 @@
   }
 
   function buildFilterOptions(){
-    // regiones
     const regions = Array.from(new Set(projects.map(p => p.region).filter(Boolean))).sort();
     regionFilter.innerHTML = '<option value="all">All regions</option>' +
       regions.map(r => `<option value="${r}">${r}</option>`).join("");
 
-    // países
     const countries = Array.from(new Set(projects.map(p => p.country).filter(Boolean))).sort();
     countryFilter.innerHTML = '<option value="all">All countries</option>' +
       countries.map(c => `<option value="${c}">${c}</option>`).join("");
 
-    // tecnologías
     const techs = Array.from(new Set(projects.map(p => p.technology).filter(Boolean))).sort();
     techFilter.innerHTML = '<option value="all">All technologies</option>' +
       techs.map(t => `<option value="${t}">${t}</option>`).join("");
 
-    // años (a partir de las fechas de proyecto)
     const yearsSet = new Set();
     for (const p of projects){
       const dates = [
@@ -555,19 +647,20 @@
     monthDetailLabel.textContent = "Select a month in the table above";
     monthRolesSummary.textContent = "Here you’ll see, for the selected month, need vs assigned FTE per role.";
     monthOverloadSummary.textContent = "And here, any people overbooked in that month (FTE assigned > FTE base).";
+    projectSelect.innerHTML = '<option value="">Select a month first</option>';
+    projectRolesContainer.innerHTML = '<div class="muted">Select a month above, then choose a project here or click on a project row.</div>';
+    currentMonthKey = null;
 
     if (!filtered.length) {
       monthlyBuckets = {};
       return;
     }
 
-    // index roles por nombre
     const roleByName = {};
     for (const r of roles){
       roleByName[r.role_name] = r;
     }
 
-    // determinar rango de meses
     let minDate = null;
     let maxDate = null;
     for (const p of filtered){
@@ -590,9 +683,8 @@
     }
 
     const yearVal = yearFilter.value;
-    const monthly = {}; // key -> agg
+    const monthly = {};
 
-    // recorre proyectos y agrega su contribución por mes
     for (const p of filtered){
       const stages = getProjectStages(p);
       if (!stages.length) continue;
@@ -629,17 +721,14 @@
 
           bucket.totalProjects.add(p.id);
 
-          // ACUMULAR MW PV / MW BESS
           const projMwPV   = Number(p.mw_pv   || 0);
           const projMwBESS = Number(p.mw_bess || 0);
           bucket.mwPV   += projMwPV;
           bucket.mwBESS += projMwBESS;
 
-          // REGIONES / PAÍSES
           if (p.region)  bucket.regions.add(p.region);
           if (p.country) bucket.countries.add(p.country);
 
-          // CLASIFICAR PROYECTO COMO PV O BESS
           const tech = (p.technology || "").toLowerCase();
           if (tech.includes("battery") || tech.includes("bess")){
             bucket.bessProjects.add(p.id);
@@ -647,10 +736,8 @@
             bucket.pvProjects.add(p.id);
           }
 
-          // CONTAR ETAPAS
           bucket.stageCounts[st.stage]++;
 
-          // CONTRIBUCIÓN DE FTE PARA CADA ROL EN ESTA ETAPA
           for (const roleName of FOCUS_ROLES){
             const rc = roleByName[roleName];
             if (!rc) continue;
@@ -664,10 +751,9 @@
       }
     }
 
-    // guardar buckets globalmente para usar en showMonthDetail
     monthlyBuckets = monthly;
 
-    const keys = Object.keys(monthly).sort(); // YYYY-MM
+    const keys = Object.keys(monthly).sort();
     for (const key of keys){
       const b = monthly[key];
       const label = monthLabel(b.date);
@@ -714,17 +800,20 @@
   }
 
   function showMonthDetail(monthKeyStr){
+    currentMonthKey = monthKeyStr;
+
     const [yStr, mStr] = monthKeyStr.split("-");
     const year = Number(yStr);
     const monthIndex = Number(mStr) - 1;
     const dMonth = new Date(year, monthIndex, 1);
     const monthStart = new Date(year, monthIndex, 1);
-    const monthEnd   = new Date(year, monthIndex + 1, 1); // exclusivo
+    const monthEnd   = new Date(year, monthIndex + 1, 1);
 
     const filtered = filteredProjects();
     monthProjectsBody.innerHTML = "";
 
-    // === 1) tabla de proyectos activos este mes ===
+    const monthProjects = [];
+
     for (const p of filtered){
       const stage = getStageForProjectAtMonth(p, dMonth);
       if (!stage) continue;
@@ -746,26 +835,41 @@
         <td>${p.mechanical_completion_date || ""}</td>
         <td>${p.pac_date || ""}</td>
       `;
+      tr.addEventListener("click", () => {
+        projectSelect.value = p.id;
+        showProjectStaffing(p.id);
+      });
       monthProjectsBody.appendChild(tr);
+      monthProjects.push(p);
     }
 
     const label = dMonth.toLocaleDateString("en-GB",{year:"numeric",month:"long"});
     monthDetailLabel.textContent = `Month: ${label} – ${filtered.length} projects in filter`;
 
-    // === 2) NEED vs ASSIGNED por rol ===
+    // rellenar selector de proyectos
+    if (monthProjects.length){
+      projectSelect.disabled = false;
+      projectSelect.innerHTML =
+        '<option value="">Select project…</option>' +
+        monthProjects.map(p =>
+          `<option value="${p.id}">${p.project_code || p.project_name || p.id}</option>`
+        ).join("");
+    } else {
+      projectSelect.disabled = true;
+      projectSelect.innerHTML = '<option value="">No projects this month</option>';
+      projectRolesContainer.innerHTML = '<div class="muted">No projects in this month with current filters.</div>';
+    }
+
+    // resumen NEED vs ASSIGNED
     const bucket = monthlyBuckets[monthKeyStr];
     const demandPerRole = bucket ? bucket.rolesDemand : null;
 
-    // proyectos filtrados -> set para filtrar assignments
     const projSet = new Set(filtered.map(p => p.id));
-
-    // asignado por rol (solo assignments de proyectos filtrados y que se solapan con el mes)
     const assignedPerRole = {};
     for (const r of FOCUS_ROLES){
       assignedPerRole[r] = 0;
     }
 
-    // FTE por persona (para detectar overload)
     const ftePerPerson = {};
 
     for (const a of assignments){
@@ -775,7 +879,6 @@
       const aEnd   = a.end_date ? parseDate(a.end_date) : null;
       if (!aStart) continue;
 
-      // solape [aStart, aEnd] con [monthStart, monthEnd)
       const overlaps =
         aStart < monthEnd &&
         (!aEnd || aEnd >= monthStart);
@@ -783,8 +886,8 @@
       if (!overlaps) continue;
 
       const fte = Number(a.fte_on_project || 0);
-
       const roleName = a.role_name;
+
       if (FOCUS_ROLES.includes(roleName)){
         assignedPerRole[roleName] += fte;
       }
@@ -793,7 +896,6 @@
       ftePerPerson[a.person_id] += fte;
     }
 
-    // construir HTML de resumen por rol
     if (demandPerRole){
       let html = '<div class="month-roles-grid">';
       for (const role of FOCUS_ROLES){
@@ -826,7 +928,6 @@
       monthRolesSummary.textContent = "No monthly demand calculated for this month.";
     }
 
-    // === 3) Personas sobre-asignadas ===
     const peopleById = {};
     for (const p of people){
       peopleById[p.id] = p;
@@ -835,7 +936,7 @@
     const overloaded = [];
     for (const [personId, totalFte] of Object.entries(ftePerPerson)){
       const person = peopleById[personId];
-      const base = Number(person?.fte_base || 1); // default 1 FTE
+      const base = Number(person?.fte_base || 1);
       if (totalFte > base + 0.01){
         overloaded.push({
           person,
@@ -861,18 +962,165 @@
     }
   }
 
-  // Eventos filtros
-  for (const el of [regionFilter, countryFilter, techFilter, yearFilter]){
+  function showProjectStaffing(projectId){
+    const project = projects.find(p => p.id === projectId);
+    if (!project){
+      projectRolesContainer.innerHTML = '<div class="muted">Project not found.</div>';
+      return;
+    }
+
+    // roles específicos del proyecto, o plantilla estándar si no hay
+    let rolesForProject = projectRoles.filter(r => r.project_id === projectId);
+    if (!rolesForProject.length){
+      rolesForProject = projectRoleStandard.map(r => ({
+        project_id: projectId,
+        role_name: r.role_name,
+        slots: r.default_slots || 1
+      }));
+    }
+
+    if (!rolesForProject.length){
+      projectRolesContainer.innerHTML = '<div class="muted">No roles defined for this project.</div>';
+      return;
+    }
+
+    const peopleById = {};
+    for (const p of people){ peopleById[p.id] = p; }
+
+    let html = "";
+    for (const pr of rolesForProject){
+      const roleName = pr.role_name;
+      const slots = pr.slots ?? 1;
+
+      const assignedThisRole = assignments.filter(a =>
+        a.project_id === projectId && a.role_name === roleName
+      );
+
+      const assignedText = assignedThisRole.length
+        ? assignedThisRole.map(a => {
+            const person = peopleById[a.person_id];
+            const name = person?.full_name || "Unknown";
+            const f = Number(a.fte_on_project || 0);
+            return `${name} (${f.toFixed(2)} FTE)`;
+          }).join(", ")
+        : "No one assigned";
+
+      const candidates = people.filter(p =>
+        p.role_name === roleName &&
+        (p.permanent_active ?? true)
+      );
+
+      const selectId = `assign_${projectId}_${roleName.replace(/[^a-zA-Z0-9]/g,"_")}`;
+
+      const optionsHtml = candidates.length
+        ? '<option value="">Select person…</option>' +
+          candidates.map(c => `<option value="${c.id}">${c.full_name || c.id}</option>`).join("")
+        : '<option value="">No available people with this role</option>';
+
+      html += `
+        <div class="proj-role-row">
+          <div class="proj-role-main">
+            <div class="proj-role-name">${roleName}</div>
+            <div class="proj-role-meta">${slots} slot(s) · ${assignedThisRole.length} assigned</div>
+            <div class="proj-role-assigned"><span class="muted">Assigned:</span> ${assignedText}</div>
+          </div>
+          <div class="proj-role-actions">
+            <select id="${selectId}" data-role="${roleName}">
+              ${optionsHtml}
+            </select>
+            <button class="primary assign-btn" data-project="${projectId}" data-role="${roleName}" data-select-id="${selectId}">
+              Assign
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    projectRolesContainer.innerHTML = html;
+
+    // listeners de botones Assign
+    projectRolesContainer.querySelectorAll(".assign-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const projectId = btn.dataset.project;
+        const roleName = btn.dataset.role;
+        const selectId = btn.dataset.selectId;
+        await handleAssignClick(projectId, roleName, selectId);
+      });
+    });
+  }
+
+  async function handleAssignClick(projectId, roleName, selectId){
+    const selectEl = document.getElementById(selectId);
+    if (!selectEl){
+      alert("Internal error: select not found");
+      return;
+    }
+    const personId = selectEl.value;
+    if (!personId){
+      alert("Select a person first.");
+      return;
+    }
+    if (!currentMonthKey){
+      alert("Select a month first.");
+      return;
+    }
+
+    const [yStr, mStr] = currentMonthKey.split("-");
+    const year = Number(yStr);
+    const monthIndex = Number(mStr) - 1;
+
+    const startDate = `${year}-${String(monthIndex+1).padStart(2,"0")}-01`;
+    const endDateObj = new Date(year, monthIndex + 1, 0); // último día del mes
+    const endDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth()+1).padStart(2,"0")}-${String(endDateObj.getDate()).padStart(2,"0")}`;
+
+    const payload = {
+      project_id: projectId,
+      person_id: personId,
+      role_name: roleName,
+      fte_on_project: 1,
+      start_date: startDate,
+      end_date: endDate
+      // stage: null (se puede añadir más adelante)
+    };
+
+    const { data, error } = await supabase
+      .from("assignments")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error){
+      console.error("Error inserting assignment", error);
+      alert("Error assigning person (check console).");
+      return;
+    }
+
+    // guardar en memoria y refrescar vistas
+    assignments.push(data);
+    showProjectStaffing(projectId);
+    showMonthDetail(currentMonthKey);
+  }
+
+  // eventos filtros
+  [regionFilter, countryFilter, techFilter, yearFilter].forEach(el => {
     el.addEventListener("change", () => {
       renderSummary();
       buildAndRenderMonthly();
     });
-  }
+  });
+
+  projectSelect.addEventListener("change", () => {
+    const projectId = projectSelect.value;
+    if (!projectId){
+      projectRolesContainer.innerHTML = '<div class="muted">Select a project to see its roles and assignments.</div>';
+      return;
+    }
+    showProjectStaffing(projectId);
+  });
+
   refreshBtn.addEventListener("click", loadData);
 
-  // carga inicial
   loadData();
 </script>
-
 </body>
 </html>
