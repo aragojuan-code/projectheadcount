@@ -178,6 +178,46 @@
       overflow:auto;
       max-height:420px;
     }
+
+    /* === NUEVO: resumen por rol y overload en Month details === */
+    .month-roles-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+      gap:8px;
+      margin-bottom:6px;
+      font-size:.72rem;
+    }
+    .role-card{
+      border-radius:10px;
+      border:1px solid rgba(148,163,184,.4);
+      padding:6px 8px;
+      background:rgba(15,23,42,.85);
+    }
+    .role-card .role-name{
+      font-size:.72rem;
+      font-weight:600;
+      margin-bottom:2px;
+    }
+    .role-card .role-values{
+      display:flex;
+      justify-content:space-between;
+      font-size:.7rem;
+    }
+    .role-gap{
+      margin-top:2px;
+      font-size:.68rem;
+      color:var(--muted);
+    }
+    .role-card.missing{border-color:#f97373;}
+    .role-card.excess{border-color:#22c55e;}
+    .overload-list{
+      margin:4px 0 0 16px;
+      padding-left:0;
+      font-size:.72rem;
+    }
+    .overload-list li{
+      margin-bottom:2px;
+    }
   </style>
 </head>
 <body>
@@ -244,14 +284,13 @@
           <thead>
             <tr>
               <th>MONTH</th>
-      <th>PROJECTS</th>
-      <th>MW PV</th>
-      <th>MW BESS</th>
-      <th>REGIONS</th>
-      <th>COUNTRIES</th>
-      <th>PV PROJ</th>
-      <th>BESS PROJ</th>
-            
+              <th>PROJECTS</th>
+              <th>MW PV</th>
+              <th>MW BESS</th>
+              <th>REGIONS</th>
+              <th>COUNTRIES</th>
+              <th>PV PROJ</th>
+              <th>BESS PROJ</th>
               <th>#E&amp;P</th>
               <th>#EPC-Proc</th>
               <th>#EPC-Eng</th>
@@ -287,6 +326,15 @@
         Month details
         <span class="label" id="monthDetailLabel">Select a month in the table above</span>
       </h2>
+
+      <!-- NUEVO: resumen por rol y overload para el mes seleccionado -->
+      <div id="monthRolesSummary" class="placeholder">
+        Here you’ll see, for the selected month, need vs assigned FTE per role.
+      </div>
+      <div id="monthOverloadSummary" class="placeholder">
+        And here, any people overbooked in that month (FTE assigned &gt; FTE base).
+      </div>
+
       <div class="scroll-x">
         <table id="monthProjectsTable">
           <thead>
@@ -298,6 +346,7 @@
               <th>Tech</th>
               <th>MW PV</th>
               <th>MW BESS</th>
+              <th>Stage (this month)</th>
               <th>Permitting</th>
               <th>Tender Pkg</th>
               <th>Financing</th>
@@ -342,13 +391,19 @@
   const monthlyLabel     = document.getElementById("monthlyLabel");
   const monthlyTableBody = document.querySelector("#monthlyTable tbody");
 
-  const monthDetailLabel  = document.getElementById("monthDetailLabel");
-  const monthProjectsBody = document.querySelector("#monthProjectsTable tbody");
+  const monthDetailLabel   = document.getElementById("monthDetailLabel");
+  const monthProjectsBody  = document.querySelector("#monthProjectsTable tbody");
+  const monthRolesSummary  = document.getElementById("monthRolesSummary");
+  const monthOverloadSummary = document.getElementById("monthOverloadSummary");
 
   // Data in memory
   let roles = [];
   let people = [];
   let projects = [];
+  let assignments = [];
+
+  // buckets mensuales accesibles desde showMonthDetail
+  let monthlyBuckets = {};
 
   // Roles que queremos ver en la tabla mensual
   const FOCUS_ROLES = [
@@ -417,19 +472,22 @@
   }
 
   async function loadData(){
-    const [rolesRes, peopleRes, projectsRes] = await Promise.all([
+    const [rolesRes, peopleRes, projectsRes, assignmentsRes] = await Promise.all([
       supabase.from("roles_capacity").select("*"),
       supabase.from("people").select("*"),
-      supabase.from("projects").select("*")
+      supabase.from("projects").select("*"),
+      supabase.from("assignments").select("*")
     ]);
 
-    if (rolesRes.error)   console.error("roles_capacity error", rolesRes.error);
-    if (peopleRes.error)  console.error("people error", peopleRes.error);
-    if (projectsRes.error)console.error("projects error", projectsRes.error);
+    if (rolesRes.error)        console.error("roles_capacity error", rolesRes.error);
+    if (peopleRes.error)       console.error("people error", peopleRes.error);
+    if (projectsRes.error)     console.error("projects error", projectsRes.error);
+    if (assignmentsRes.error)  console.error("assignments error", assignmentsRes.error);
 
-    roles    = rolesRes.data  || [];
-    people   = peopleRes.data || [];
-    projects = projectsRes.data || [];
+    roles       = rolesRes.data        || [];
+    people      = peopleRes.data       || [];
+    projects    = projectsRes.data     || [];
+    assignments = assignmentsRes.data  || [];
 
     buildFilterOptions();
     renderSummary();
@@ -495,8 +553,13 @@
     monthlyTableBody.innerHTML = "";
     monthProjectsBody.innerHTML = "";
     monthDetailLabel.textContent = "Select a month in the table above";
+    monthRolesSummary.textContent = "Here you’ll see, for the selected month, need vs assigned FTE per role.";
+    monthOverloadSummary.textContent = "And here, any people overbooked in that month (FTE assigned > FTE base).";
 
-    if (!filtered.length) return;
+    if (!filtered.length) {
+      monthlyBuckets = {};
+      return;
+    }
 
     // index roles por nombre
     const roleByName = {};
@@ -504,7 +567,7 @@
       roleByName[r.role_name] = r;
     }
 
-    // determinar rango de meses (no lo usamos directamente, pero lo dejamos)
+    // determinar rango de meses
     let minDate = null;
     let maxDate = null;
     for (const p of filtered){
@@ -521,7 +584,10 @@
         if (!maxDate || d > maxDate) maxDate = d;
       }
     }
-    if (!minDate || !maxDate) return;
+    if (!minDate || !maxDate) {
+      monthlyBuckets = {};
+      return;
+    }
 
     const yearVal = yearFilter.value;
     const monthly = {}; // key -> agg
@@ -563,28 +629,28 @@
 
           bucket.totalProjects.add(p.id);
 
-          // 🔹 ACUMULAR MW PV / MW BESS
+          // ACUMULAR MW PV / MW BESS
           const projMwPV   = Number(p.mw_pv   || 0);
           const projMwBESS = Number(p.mw_bess || 0);
           bucket.mwPV   += projMwPV;
           bucket.mwBESS += projMwBESS;
 
-          // 🔹 REGIONES / PAÍSES
+          // REGIONES / PAÍSES
           if (p.region)  bucket.regions.add(p.region);
           if (p.country) bucket.countries.add(p.country);
 
-          // 🔹 CLASIFICAR PROYECTO COMO PV O BESS
+          // CLASIFICAR PROYECTO COMO PV O BESS
           const tech = (p.technology || "").toLowerCase();
           if (tech.includes("battery") || tech.includes("bess")){
             bucket.bessProjects.add(p.id);
-          } else if (tech){ // cualquier otra cosa con tech se considera PV (incluye PV + Storage)
+          } else if (tech){
             bucket.pvProjects.add(p.id);
           }
 
-          // 🔹 CONTAR ETAPAS
+          // CONTAR ETAPAS
           bucket.stageCounts[st.stage]++;
 
-          // 🔹 CONTRIBUCIÓN DE FTE PARA CADA ROL EN ESTA ETAPA
+          // CONTRIBUCIÓN DE FTE PARA CADA ROL EN ESTA ETAPA
           for (const roleName of FOCUS_ROLES){
             const rc = roleByName[roleName];
             if (!rc) continue;
@@ -597,6 +663,9 @@
         }
       }
     }
+
+    // guardar buckets globalmente para usar en showMonthDetail
+    monthlyBuckets = monthly;
 
     const keys = Object.keys(monthly).sort(); // YYYY-MM
     for (const key of keys){
@@ -646,11 +715,16 @@
 
   function showMonthDetail(monthKeyStr){
     const [yStr, mStr] = monthKeyStr.split("-");
-    const dMonth = new Date(Number(yStr), Number(mStr)-1, 1);
+    const year = Number(yStr);
+    const monthIndex = Number(mStr) - 1;
+    const dMonth = new Date(year, monthIndex, 1);
+    const monthStart = new Date(year, monthIndex, 1);
+    const monthEnd   = new Date(year, monthIndex + 1, 1); // exclusivo
 
     const filtered = filteredProjects();
     monthProjectsBody.innerHTML = "";
 
+    // === 1) tabla de proyectos activos este mes ===
     for (const p of filtered){
       const stage = getStageForProjectAtMonth(p, dMonth);
       if (!stage) continue;
@@ -677,6 +751,114 @@
 
     const label = dMonth.toLocaleDateString("en-GB",{year:"numeric",month:"long"});
     monthDetailLabel.textContent = `Month: ${label} – ${filtered.length} projects in filter`;
+
+    // === 2) NEED vs ASSIGNED por rol ===
+    const bucket = monthlyBuckets[monthKeyStr];
+    const demandPerRole = bucket ? bucket.rolesDemand : null;
+
+    // proyectos filtrados -> set para filtrar assignments
+    const projSet = new Set(filtered.map(p => p.id));
+
+    // asignado por rol (solo assignments de proyectos filtrados y que se solapan con el mes)
+    const assignedPerRole = {};
+    for (const r of FOCUS_ROLES){
+      assignedPerRole[r] = 0;
+    }
+
+    // FTE por persona (para detectar overload)
+    const ftePerPerson = {};
+
+    for (const a of assignments){
+      if (!projSet.has(a.project_id)) continue;
+
+      const aStart = parseDate(a.start_date);
+      const aEnd   = a.end_date ? parseDate(a.end_date) : null;
+      if (!aStart) continue;
+
+      // solape [aStart, aEnd] con [monthStart, monthEnd)
+      const overlaps =
+        aStart < monthEnd &&
+        (!aEnd || aEnd >= monthStart);
+
+      if (!overlaps) continue;
+
+      const fte = Number(a.fte_on_project || 0);
+
+      const roleName = a.role_name;
+      if (FOCUS_ROLES.includes(roleName)){
+        assignedPerRole[roleName] += fte;
+      }
+
+      if (!ftePerPerson[a.person_id]) ftePerPerson[a.person_id] = 0;
+      ftePerPerson[a.person_id] += fte;
+    }
+
+    // construir HTML de resumen por rol
+    if (demandPerRole){
+      let html = '<div class="month-roles-grid">';
+      for (const role of FOCUS_ROLES){
+        const need = demandPerRole[role] || 0;
+        const have = assignedPerRole[role] || 0;
+        const gap = need - have;
+        let statusClass = "";
+        let gapText = "Balanced";
+        if (gap > 0.05){
+          statusClass = "missing";
+          gapText = `Missing ${gap.toFixed(1)} FTE`;
+        } else if (gap < -0.05){
+          statusClass = "excess";
+          gapText = `Excess ${(-gap).toFixed(1)} FTE`;
+        }
+        html += `
+          <div class="role-card ${statusClass}">
+            <div class="role-name">${role}</div>
+            <div class="role-values">
+              <span>${need.toFixed(1)} need</span>
+              <span>${have.toFixed(1)} assigned</span>
+            </div>
+            <div class="role-gap">${gapText}</div>
+          </div>
+        `;
+      }
+      html += "</div>";
+      monthRolesSummary.innerHTML = html;
+    } else {
+      monthRolesSummary.textContent = "No monthly demand calculated for this month.";
+    }
+
+    // === 3) Personas sobre-asignadas ===
+    const peopleById = {};
+    for (const p of people){
+      peopleById[p.id] = p;
+    }
+
+    const overloaded = [];
+    for (const [personId, totalFte] of Object.entries(ftePerPerson)){
+      const person = peopleById[personId];
+      const base = Number(person?.fte_base || 1); // default 1 FTE
+      if (totalFte > base + 0.01){
+        overloaded.push({
+          person,
+          totalFte,
+          base,
+          over: totalFte - base
+        });
+      }
+    }
+
+    if (overloaded.length){
+      overloaded.sort((a,b) => b.over - a.over);
+      const items = overloaded.map(o => {
+        const name = o.person?.full_name || "Unknown";
+        return `<li><strong>${name}</strong> – assigned ${o.totalFte.toFixed(2)} FTE vs base ${o.base.toFixed(2)} (over by ${o.over.toFixed(2)})</li>`;
+      }).join("");
+      monthOverloadSummary.innerHTML = `
+        <div class="muted">People overload this month (consider rebalancing or hiring):</div>
+        <ul class="overload-list">${items}</ul>
+      `;
+    } else {
+      monthOverloadSummary.innerHTML = `<span class="muted">No overload detected for this month (based on FTE assignments).</span>`;
+    }
   }
 
   // Eventos filtros
