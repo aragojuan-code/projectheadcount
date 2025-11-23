@@ -1049,7 +1049,7 @@
     });
   }
 
-   async function handleAssignClick(projectId, roleName, selectId){
+  async function handleAssignClick(projectId, roleName, selectId){
     const selectEl = document.getElementById(selectId);
     if (!selectEl){
       alert("Internal error: select not found");
@@ -1060,42 +1060,55 @@
       alert("Select a person first.");
       return;
     }
-    if (!currentMonthKey){
-      alert("Select a month first.");
+
+    const project = projects.find(p => p.id === projectId);
+    if (!project){
+      alert("Project not found.");
       return;
     }
 
-    const [yStr, mStr] = currentMonthKey.split("-");
-    const year = Number(yStr);
-    const monthIndex = Number(mStr) - 1;
+    // 🔹 Fechas del proyecto: usamos todo el rango del proyecto
+    const pa  = parseDate(project.permitting_approval_date);
+    const tpd = parseDate(project.tender_package_design_date);
+    const fs  = parseDate(project.financing_signing_date);
+    const cs  = parseDate(project.construction_start_date);
+    const mc  = parseDate(project.mechanical_completion_date);
+    const pac = parseDate(project.pac_date);
 
-    const startDate = `${year}-${String(monthIndex+1).padStart(2,"0")}-01`;
-    const endDateObj = new Date(year, monthIndex + 1, 0); // último día del mes
-    const endDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth()+1).padStart(2,"0")}-${String(endDateObj.getDate()).padStart(2,"0")}`;
+    const allDates = [pa,tpd,fs,cs,mc,pac].filter(Boolean).sort((a,b) => a-b);
 
-    // 🔹 calcular stage del proyecto en ese mes (si existe)
-    const project = projects.find(p => p.id === projectId);
-       let stage = null;
-    if (project){
-      const monthDate = new Date(year, monthIndex, 1);
-      stage = getStageForProjectAtMonth(project, monthDate);
+    // helpers para pasar Date -> "YYYY-MM-DD"
+    const toDateStr = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+
+    let startDate, endDate;
+    if (allDates.length){
+      startDate = toDateStr(allDates[0]);                  // primer hito
+      endDate   = toDateStr(allDates[allDates.length-1]);  // último hito
+    } else {
+      // fallback por si algún proyecto no tiene fechas bien cargadas
+      const today = new Date();
+      startDate = toDateStr(today);
+      endDate   = toDateStr(today);
     }
 
-    // ⚠️ Aseguramos que stage nunca sea null: si no lo encontramos,
-    // usamos un valor por defecto del enum (ajusta si tu enum usa otros nombres)
-    const stageValue = stage || "eng_perm";
+    // 🔹 Elegimos un stage "de proyecto" (primera etapa definida)
+    let stageValue = "eng_perm"; // valor por defecto válido del enum
+    const stages = getProjectStages(project);
+    if (stages.length){
+      stageValue = stages[0].stage; // ej. eng_perm
+    }
 
     const payload = {
-      id: crypto.randomUUID(),          // por si id es NOT NULL
+      id: crypto.randomUUID(),   // por si id es NOT NULL
       project_id: projectId,
       person_id: personId,
       role_name: roleName,
-      stage: stageValue,                // siempre un string válido
+      stage: stageValue,
       fte_on_project: 1,
       start_date: startDate,
       end_date: endDate
     };
-
 
     const { data, error } = await supabase
       .from("assignments")
@@ -1109,11 +1122,16 @@
       return;
     }
 
-    // guardar en memoria y refrescar vistas
+    // Añadimos en memoria y refrescamos vistas
     assignments.push(data);
+
+    // volvemos a pintar staffing y resumen del mes actual
     showProjectStaffing(projectId);
-    showMonthDetail(currentMonthKey);
+    if (currentMonthKey){
+      showMonthDetail(currentMonthKey);
+    }
   }
+
 
 
   // eventos filtros
