@@ -243,13 +243,15 @@
         <table id="monthlyTable">
           <thead>
             <tr>
-              <th>Month</th>
-              <th>Projects</th>
-              <th>MW</th>
-              <th>Regions</th>
-              <th>Countries</th>
-              <th>PV proj</th>
-              <th>BESS proj</th>
+              <th>MONTH</th>
+      <th>PROJECTS</th>
+      <th>MW PV</th>
+      <th>MW BESS</th>
+      <th>REGIONS</th>
+      <th>COUNTRIES</th>
+      <th>PV PROJ</th>
+      <th>BESS PROJ</th>
+            
               <th>#E&amp;P</th>
               <th>#EPC-Proc</th>
               <th>#EPC-Eng</th>
@@ -403,7 +405,6 @@
     const mYear = monthDate.getFullYear();
     const mMonth = monthDate.getMonth();
     for (const st of stages){
-      // recorre meses del intervalo de la etapa
       const d = new Date(st.start.getFullYear(), st.start.getMonth(), 1);
       while (d < st.end){
         if (d.getFullYear() === mYear && d.getMonth() === mMonth){
@@ -503,7 +504,7 @@
       roleByName[r.role_name] = r;
     }
 
-    // determinar rango de meses
+    // determinar rango de meses (no lo usamos directamente, pero lo dejamos)
     let minDate = null;
     let maxDate = null;
     for (const p of filtered){
@@ -522,7 +523,6 @@
     }
     if (!minDate || !maxDate) return;
 
-    // año filtrado
     const yearVal = yearFilter.value;
     const monthly = {}; // key -> agg
 
@@ -532,7 +532,6 @@
       if (!stages.length) continue;
 
       for (const st of stages){
-        // arrancamos desde el primer día de mes de start
         const cursor = new Date(st.start.getFullYear(), st.start.getMonth(), 1);
         while (cursor < st.end){
           const y = cursor.getFullYear();
@@ -545,7 +544,8 @@
             monthly[key] = {
               date: new Date(cursor.getTime()),
               totalProjects: new Set(),
-              totalMW: 0,
+              mwPV: 0,
+              mwBESS: 0,
               regions: new Set(),
               countries: new Set(),
               pvProjects: new Set(),
@@ -555,24 +555,40 @@
               },
               rolesDemand: {}
             };
-            for (const r of FOCUS_ROLES){
-              monthly[key].rolesDemand[r] = 0;
+            for (const rName of FOCUS_ROLES){
+              monthly[key].rolesDemand[rName] = 0;
             }
           }
           const bucket = monthly[key];
+
           bucket.totalProjects.add(p.id);
-          bucket.totalMW += Number(p.capacity_mw || 0);
-          if (p.region)   bucket.regions.add(p.region);
-          if (p.country)  bucket.countries.add(p.country);
-          if (p.technology === "PV")   bucket.pvProjects.add(p.id);
-          if (p.technology === "BESS") bucket.bessProjects.add(p.id);
+
+          // 🔹 ACUMULAR MW PV / MW BESS
+          const projMwPV   = Number(p.mw_pv   || 0);
+          const projMwBESS = Number(p.mw_bess || 0);
+          bucket.mwPV   += projMwPV;
+          bucket.mwBESS += projMwBESS;
+
+          // 🔹 REGIONES / PAÍSES
+          if (p.region)  bucket.regions.add(p.region);
+          if (p.country) bucket.countries.add(p.country);
+
+          // 🔹 CLASIFICAR PROYECTO COMO PV O BESS
+          const tech = (p.technology || "").toLowerCase();
+          if (tech.includes("battery") || tech.includes("bess")){
+            bucket.bessProjects.add(p.id);
+          } else if (tech){ // cualquier otra cosa con tech se considera PV (incluye PV + Storage)
+            bucket.pvProjects.add(p.id);
+          }
+
+          // 🔹 CONTAR ETAPAS
           bucket.stageCounts[st.stage]++;
 
-          // contribución de FTE para cada rol en esta etapa
+          // 🔹 CONTRIBUCIÓN DE FTE PARA CADA ROL EN ESTA ETAPA
           for (const roleName of FOCUS_ROLES){
             const rc = roleByName[roleName];
             if (!rc) continue;
-            const field = STAGE_DEMAND_FIELDS[st.stage];
+            const field  = STAGE_DEMAND_FIELDS[st.stage];
             const demand = Number(rc[field] || 0);
             bucket.rolesDemand[roleName] += demand;
           }
@@ -586,15 +602,15 @@
     for (const key of keys){
       const b = monthly[key];
       const label = monthLabel(b.date);
+      const rd = b.rolesDemand;
 
       const tr = document.createElement("tr");
       tr.dataset.monthKey = key;
-      const rd = b.rolesDemand;
-
       tr.innerHTML = `
         <td style="text-align:left">${label}</td>
         <td>${b.totalProjects.size}</td>
-        <td>${b.totalMW.toFixed(1)}</td>
+        <td>${b.mwPV.toFixed(1)}</td>
+        <td>${b.mwBESS.toFixed(1)}</td>
         <td>${b.regions.size}</td>
         <td>${b.countries.size}</td>
         <td>${b.pvProjects.size}</td>
@@ -621,10 +637,10 @@
       monthlyTableBody.appendChild(tr);
     }
 
-    const labYear = (yearVal === "all" ? "All years" : yearVal);
-    const labRegion   = regionFilter.value === "all" ? "All regions" : regionFilter.value;
-    const labCountry  = countryFilter.value === "all" ? "All countries" : countryFilter.value;
-    const labTech     = techFilter.value === "all" ? "All tech" : techFilter.value;
+    const labYear   = (yearVal === "all" ? "All years" : yearVal);
+    const labRegion = regionFilter.value === "all" ? "All regions"   : regionFilter.value;
+    const labCountry= countryFilter.value === "all" ? "All countries" : countryFilter.value;
+    const labTech   = techFilter.value === "all" ? "All tech"       : techFilter.value;
     monthlyLabel.textContent = `${labYear} · ${labRegion} · ${labCountry} · ${labTech}`;
   }
 
@@ -646,7 +662,8 @@
         <td>${p.region || ""}</td>
         <td>${p.country || ""}</td>
         <td>${p.technology || ""}</td>
-        <td>${p.capacity_mw ?? ""}</td>
+        <td>${p.mw_pv ?? ""}</td>
+        <td>${p.mw_bess ?? ""}</td>
         <td>${stage}</td>
         <td>${p.permitting_approval_date || ""}</td>
         <td>${p.tender_package_design_date || ""}</td>
@@ -674,5 +691,6 @@
   // carga inicial
   loadData();
 </script>
+
 </body>
 </html>
