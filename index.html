@@ -1049,7 +1049,7 @@
     });
   }
 
-  async function handleAssignClick(projectId, roleName, selectId){
+   async function handleAssignClick(projectId, roleName, selectId){
     const selectEl = document.getElementById(selectId);
     if (!selectEl){
       alert("Internal error: select not found");
@@ -1073,14 +1073,24 @@
     const endDateObj = new Date(year, monthIndex + 1, 0); // último día del mes
     const endDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth()+1).padStart(2,"0")}-${String(endDateObj.getDate()).padStart(2,"0")}`;
 
+    // 🔹 calcular stage del proyecto en ese mes (si existe)
+    const project = projects.find(p => p.id === projectId);
+    let stage = null;
+    if (project){
+      const monthDate = new Date(year, monthIndex, 1);
+      stage = getStageForProjectAtMonth(project, monthDate);
+    }
+
+    // 🔹 payload completo: id + stage + demás columnas
     const payload = {
+      id: crypto.randomUUID(),          // por si id es NOT NULL sin default
       project_id: projectId,
       person_id: personId,
       role_name: roleName,
+      stage: stage || null,             // si la columna es NOT NULL, asegúrate de tener valor válido
       fte_on_project: 1,
       start_date: startDate,
       end_date: endDate
-      // stage: null (se puede añadir más adelante)
     };
 
     const { data, error } = await supabase
@@ -1091,7 +1101,7 @@
 
     if (error){
       console.error("Error inserting assignment", error);
-      alert("Error assigning person (check console).");
+      alert("Error assigning person: " + (error.message || JSON.stringify(error)));
       return;
     }
 
@@ -1100,6 +1110,7 @@
     showProjectStaffing(projectId);
     showMonthDetail(currentMonthKey);
   }
+
 
   // eventos filtros
   [regionFilter, countryFilter, techFilter, yearFilter].forEach(el => {
