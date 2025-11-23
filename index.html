@@ -985,7 +985,7 @@
     }
   }
 
-  function showProjectStaffing(projectId){
+   function showProjectStaffing(projectId){
     const project = projects.find(p => p.id === projectId);
     if (!project){
       projectRolesContainer.innerHTML = '<div class="muted">Project not found.</div>';
@@ -1019,14 +1019,29 @@
         a.project_id === projectId && a.role_name === roleName
       );
 
-      const assignedText = assignedThisRole.length
-        ? assignedThisRole.map(a => {
-            const person = peopleById[a.person_id];
-            const name = person?.full_name || "Unknown";
-            const f = Number(a.fte_on_project || 0);
-            return `${name} (${f.toFixed(2)} FTE)`;
-          }).join(", ")
-        : "No one assigned";
+      // 🔹 chips con botón “x” para desasignar
+      let assignedHtml;
+      if (!assignedThisRole.length){
+        assignedHtml = '<span class="muted">Assigned:</span> No one assigned';
+      } else {
+        const chips = assignedThisRole.map(a => {
+          const person = peopleById[a.person_id];
+          const name = person?.full_name || "Unknown";
+          const f = Number(a.fte_on_project || 0);
+          return `
+            <span class="assign-chip">
+              ${name} (${f.toFixed(2)} FTE)
+              <button
+                type="button"
+                class="unassign-btn"
+                data-assignment-id="${a.id}"
+                data-project-id="${projectId}"
+              >×</button>
+            </span>
+          `;
+        }).join(" ");
+        assignedHtml = `<span class="muted">Assigned:</span> ${chips}`;
+      }
 
       const candidates = people.filter(p =>
         p.role_name === roleName &&
@@ -1045,7 +1060,7 @@
           <div class="proj-role-main">
             <div class="proj-role-name">${roleName}</div>
             <div class="proj-role-meta">${slots} slot(s) · ${assignedThisRole.length} assigned</div>
-            <div class="proj-role-assigned"><span class="muted">Assigned:</span> ${assignedText}</div>
+            <div class="proj-role-assigned">${assignedHtml}</div>
           </div>
           <div class="proj-role-actions">
             <select id="${selectId}" data-role="${roleName}">
@@ -1070,7 +1085,18 @@
         await handleAssignClick(projectId, roleName, selectId);
       });
     });
+
+    // 👉 NUEVO: listeners para Unassign
+    projectRolesContainer.querySelectorAll(".unassign-btn").forEach(btn => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation(); // por si acaso
+        const assignmentId = btn.dataset.assignmentId;
+        const projectId = btn.dataset.projectId;
+        await handleUnassignClick(assignmentId, projectId);
+      });
+    });
   }
+
 
   async function handleAssignClick(projectId, roleName, selectId){
     const selectEl = document.getElementById(selectId);
@@ -1149,6 +1175,29 @@
     assignments.push(data);
 
     // volvemos a pintar staffing y resumen del mes actual
+    showProjectStaffing(projectId);
+    if (currentMonthKey){
+      showMonthDetail(currentMonthKey);
+    }
+  }
+  async function handleUnassignClick(assignmentId, projectId){
+    if (!assignmentId) return;
+
+    const { error } = await supabase
+      .from("assignments")
+      .delete()
+      .eq("id", assignmentId);
+
+    if (error){
+      console.error("Error deleting assignment", error);
+      alert("Error unassigning person: " + (error.message || JSON.stringify(error)));
+      return;
+    }
+
+    // quitar de memoria
+    assignments = assignments.filter(a => a.id !== assignmentId);
+
+    // refrescar panel de proyecto y resumen mensual
     showProjectStaffing(projectId);
     if (currentMonthKey){
       showMonthDetail(currentMonthKey);
