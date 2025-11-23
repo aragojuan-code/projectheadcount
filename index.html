@@ -154,26 +154,12 @@
     tbody tr:nth-child(even){
       background-color:rgba(15,23,42,.7);
     }
-    tbody tr:hover{
-      background-color:rgba(30,64,175,.55);
-      cursor:pointer;
-    }
     .muted{color:var(--muted);}
     .placeholder{
       font-size:.8rem;
       color:var(--muted);
       padding:8px 2px 2px;
     }
-    .pill{
-      padding:2px 8px;
-      border-radius:999px;
-      background:rgba(15,23,42,.9);
-      border:1px solid rgba(148,163,184,.4);
-      font-size:.7rem;
-    }
-    .pill strong{color:var(--accent);}
-    .pill.sm{font-size:.68rem;padding:2px 6px;}
-    .pill.red{border-color:var(--danger);color:#fecaca;}
     .scroll-x{
       overflow:auto;
       max-height:420px;
@@ -245,29 +231,6 @@
       flex-direction:column;
       gap:6px;
     }
-        .assign-chip{
-      display:inline-flex;
-      align-items:center;
-      gap:4px;
-      padding:2px 6px;
-      margin:2px 4px 2px 0;
-      border-radius:999px;
-      background:rgba(15,23,42,.9);
-      border:1px solid rgba(148,163,184,.4);
-      font-size:.7rem;
-    }
-    .assign-chip button.unassign-btn{
-      border:none;
-      background:transparent;
-      color:#fca5a5;
-      font-size:.72rem;
-      cursor:pointer;
-      padding:0 2px;
-    }
-    .assign-chip button.unassign-btn:hover{
-      color:#fecaca;
-    }
-
     .proj-role-row{
       display:flex;
       flex-wrap:wrap;
@@ -311,6 +274,67 @@
       padding:4px 10px;
       border-radius:999px;
       cursor:pointer;
+    }
+
+    /* Chips de asignados */
+    .assign-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:2px 6px;
+      margin:2px 4px 2px 0;
+      border-radius:999px;
+      background:rgba(15,23,42,.9);
+      border:1px solid rgba(148,163,184,.4);
+      font-size:.7rem;
+    }
+    .assign-chip button.unassign-btn{
+      border:none;
+      background:transparent;
+      color:#fca5a5;
+      font-size:.72rem;
+      cursor:pointer;
+      padding:0 2px;
+    }
+    .assign-chip button.unassign-btn:hover{
+      color:#fecaca;
+    }
+
+    /* Tabla de carga por persona */
+    .person-load{
+      margin-top:10px;
+      border-top:1px solid rgba(30,64,175,.6);
+      padding-top:8px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      font-size:.75rem;
+    }
+    .person-load-table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:.74rem;
+      margin-top:6px;
+    }
+    .person-load-table th,
+    .person-load-table td{
+      padding:4px 6px;
+      text-align:center;
+      border-bottom:1px solid rgba(31,41,55,.8);
+      white-space:nowrap;
+    }
+    .person-load-table th:first-child,
+    .person-load-table td:first-child{
+      text-align:left;
+    }
+    .load-ok{
+      background:rgba(22,163,74,.18);
+    }
+    .load-near{
+      background:rgba(234,179,8,.22);
+    }
+    .load-over{
+      background:rgba(220,38,38,.28);
     }
   </style>
 </head>
@@ -367,7 +391,7 @@
       </div>
     </section>
 
-    <!-- MONTHLY DEMAND -->
+    <!-- MONTHLY DEMAND (TRANSPOSED) -->
     <section class="panel">
       <h2>
         Monthly demand (FTE) – focus roles
@@ -377,31 +401,7 @@
         <table id="monthlyTable">
           <thead>
             <tr>
-              <th>MONTH</th>
-              <th>PROJECTS</th>
-              <th>MW PV</th>
-              <th>MW BESS</th>
-              <th>REGIONS</th>
-              <th>COUNTRIES</th>
-              <th>PV PROJ</th>
-              <th>BESS PROJ</th>
-              <th>#E&amp;P</th>
-              <th>#EPC-Proc</th>
-              <th>#EPC-Eng</th>
-              <th>#Constr.</th>
-              <th>#Comm.</th>
-              <th>PD</th>
-              <th>PM</th>
-              <th>Perm. Mgr</th>
-              <th>Proj Eng</th>
-              <th>Constr. PM</th>
-              <th>Site Mgr</th>
-              <th>Qual. Mgr</th>
-              <th>H&amp;S Mgr</th>
-              <th>LTA Mgr</th>
-              <th>P&amp;C Analyst</th>
-              <th>Scheduler</th>
-              <th>Budget Ctrl.</th>
+              <!-- filled by JS -->
             </tr>
           </thead>
           <tbody>
@@ -410,11 +410,11 @@
         </table>
       </div>
       <div class="placeholder">
-        Click any month row to see the list of projects active in that month, with their stage and details.
+        Click a month header to see details and active projects for that month.
       </div>
     </section>
 
-    <!-- MONTH DETAIL + PROJECT STAFFING -->
+    <!-- MONTH DETAIL + PROJECT STAFFING + PERSON LOAD -->
     <section class="panel">
       <h2>
         Month details
@@ -471,8 +471,24 @@
         </div>
       </div>
 
+      <!-- PERSON LOAD -->
+      <div class="person-load">
+        <div class="project-staffing-header">
+          <span>Person load by month – select a person to see projects & MW vs capacity</span>
+          <div>
+            <select id="personSelect">
+              <option value="">Select person…</option>
+            </select>
+          </div>
+        </div>
+        <div id="personLoadContainer" class="placeholder">
+          Select a person to see monthly projects & MW for the selected year (year filter or current month).
+        </div>
+      </div>
+
       <div class="placeholder">
-        Project list shows which projects are active this month. In “Project staffing” you can assign people from the pool to each role; assignments are stored in the Supabase table <code>assignments</code>.
+        Project list shows which projects are active this month. In “Project staffing” you can assign or unassign people;
+        in “Person load” you see, by month, how many projects and MW each person carries vs their role capacity.
       </div>
     </section>
   </main>
@@ -498,8 +514,10 @@
   const summaryProjects = document.getElementById("summaryProjects");
   const summaryProjectsExtra = document.getElementById("summaryProjectsExtra");
 
-  const monthlyLabel     = document.getElementById("monthlyLabel");
-  const monthlyTableBody = document.querySelector("#monthlyTable tbody");
+  const monthlyLabel      = document.getElementById("monthlyLabel");
+  const monthlyTable      = document.getElementById("monthlyTable");
+  const monthlyTableHead  = monthlyTable.querySelector("thead");
+  const monthlyTableBody  = monthlyTable.querySelector("tbody");
 
   const monthDetailLabel   = document.getElementById("monthDetailLabel");
   const monthProjectsBody  = document.querySelector("#monthProjectsTable tbody");
@@ -507,8 +525,12 @@
   const monthOverloadSummary = document.getElementById("monthOverloadSummary");
 
   // project staffing refs
-  const projectSelect        = document.getElementById("projectSelect");
+  const projectSelect         = document.getElementById("projectSelect");
   const projectRolesContainer = document.getElementById("projectRolesContainer");
+
+  // person load refs
+  const personSelect        = document.getElementById("personSelect");
+  const personLoadContainer = document.getElementById("personLoadContainer");
 
   // Data in memory
   let roles = [];
@@ -609,6 +631,7 @@
     projectRoleStandard = projRoleStdRes.data || [];
 
     buildFilterOptions();
+    buildPersonOptions();
     renderSummary();
     buildAndRenderMonthly();
   }
@@ -647,6 +670,17 @@
       years.map(y => `<option value="${y}">${y}</option>`).join("");
   }
 
+  function buildPersonOptions(){
+    const sorted = [...people].sort((a,b) =>
+      (a.full_name || "").localeCompare(b.full_name || "")
+    );
+    personSelect.innerHTML =
+      '<option value="">Select person…</option>' +
+      sorted.map(p =>
+        `<option value="${p.id}">${p.full_name || p.id} ${p.role_name ? " · " + p.role_name : ""}</option>`
+      ).join("");
+  }
+
   function filteredProjects(){
     return projects.filter(p => {
       if (regionFilter.value !== "all" && p.region !== regionFilter.value) return false;
@@ -665,6 +699,7 @@
 
   function buildAndRenderMonthly(){
     const filtered = filteredProjects();
+    monthlyTableHead.innerHTML = "<tr></tr>";
     monthlyTableBody.innerHTML = "";
     monthProjectsBody.innerHTML = "";
     monthDetailLabel.textContent = "Select a month in the table above";
@@ -777,43 +812,63 @@
     monthlyBuckets = monthly;
 
     const keys = Object.keys(monthly).sort();
+
+    // CABECERA: meses como columnas
+    const headRow = document.createElement("tr");
+    let headHtml = "<th></th>";
     for (const key of keys){
       const b = monthly[key];
       const label = monthLabel(b.date);
-      const rd = b.rolesDemand;
+      headHtml += `<th data-month-key="${key}" style="cursor:pointer">${label}</th>`;
+    }
+    headRow.innerHTML = headHtml;
+    monthlyTableHead.innerHTML = "";
+    monthlyTableHead.appendChild(headRow);
 
+    // Click en cabecera de mes
+    headRow.querySelectorAll("th").forEach((th, idx) => {
+      if (idx === 0) return;
+      const key = keys[idx-1];
+      th.addEventListener("click", () => showMonthDetail(key));
+    });
+
+    // Helper para añadir filas
+    function addRow(label, valueFn){
       const tr = document.createElement("tr");
-      tr.dataset.monthKey = key;
-      tr.innerHTML = `
-        <td style="text-align:left">${label}</td>
-        <td>${b.totalProjects.size}</td>
-        <td>${b.mwPV.toFixed(1)}</td>
-        <td>${b.mwBESS.toFixed(1)}</td>
-        <td>${b.regions.size}</td>
-        <td>${b.countries.size}</td>
-        <td>${b.pvProjects.size}</td>
-        <td>${b.bessProjects.size}</td>
-        <td>${b.stageCounts.eng_perm}</td>
-        <td>${b.stageCounts.epc_proc}</td>
-        <td>${b.stageCounts.epc_eng}</td>
-        <td>${b.stageCounts.construction}</td>
-        <td>${b.stageCounts.commissioning}</td>
-        <td>${rd["PD"].toFixed(2)}</td>
-        <td>${rd["PM"].toFixed(2)}</td>
-        <td>${rd["Permitting Manager"].toFixed(2)}</td>
-        <td>${rd["Project Engineer"].toFixed(2)}</td>
-        <td>${rd["Construction PM"].toFixed(2)}</td>
-        <td>${rd["Site Manager"].toFixed(2)}</td>
-        <td>${rd["Quality Manager"].toFixed(2)}</td>
-        <td>${rd["H&S Manager"].toFixed(2)}</td>
-        <td>${rd["LTA Manager"].toFixed(2)}</td>
-        <td>${rd["P&C Analyst"].toFixed(2)}</td>
-        <td>${rd["Scheduler"].toFixed(2)}</td>
-        <td>${rd["Budget Controller"].toFixed(2)}</td>
-      `;
-      tr.addEventListener("click", () => showMonthDetail(key));
+      let html = `<td style="text-align:left">${label}</td>`;
+      for (const key of keys){
+        const b = monthly[key];
+        html += `<td>${valueFn(b)}</td>`;
+      }
+      tr.innerHTML = html;
       monthlyTableBody.appendChild(tr);
     }
+
+    addRow("Projects",   b => b.totalProjects.size);
+    addRow("MW PV",      b => b.mwPV.toFixed(1));
+    addRow("MW BESS",    b => b.mwBESS.toFixed(1));
+    addRow("Regions",    b => b.regions.size);
+    addRow("Countries",  b => b.countries.size);
+    addRow("PV Projects",  b => b.pvProjects.size);
+    addRow("BESS Projects",b => b.bessProjects.size);
+    addRow("#E&P",       b => b.stageCounts.eng_perm);
+    addRow("#EPC-Proc",  b => b.stageCounts.epc_proc);
+    addRow("#EPC-Eng",   b => b.stageCounts.epc_eng);
+    addRow("#Constr.",   b => b.stageCounts.construction);
+    addRow("#Comm.",     b => b.stageCounts.commissioning);
+
+    addRow("PD",              b => b.rolesDemand["PD"].toFixed(2));
+    addRow("PM",              b => b.rolesDemand["PM"].toFixed(2));
+    addRow("Perm. Mgr",       b => b.rolesDemand["Permitting Manager"].toFixed(2));
+    addRow("Proj Eng",        b => b.rolesDemand["Project Engineer"].toFixed(2));
+    addRow("Constr. PM",      b => b.rolesDemand["Construction PM"].toFixed(2));
+    addRow("Site Mgr",        b => b.rolesDemand["Site Manager"].toFixed(2));
+    addRow("Qual. Mgr",       b => b.rolesDemand["Quality Manager"].toFixed(2));
+    addRow("H&S Mgr",         b => b.rolesDemand["H&S Manager"].toFixed(2));
+    addRow("LTA Mgr",         b => b.rolesDemand["LTA Manager"].toFixed(2));
+    addRow("P&C Analyst",     b => b.rolesDemand["P&C Analyst"].toFixed(2));
+    addRow("Scheduler",       b => b.rolesDemand["Scheduler"].toFixed(2));
+    addRow("Budget Controller", b => b.rolesDemand["Budget Controller"].toFixed(2));
 
     const labYear   = (yearVal === "all" ? "All years" : yearVal);
     const labRegion = regionFilter.value === "all" ? "All regions"   : regionFilter.value;
@@ -983,16 +1038,20 @@
     } else {
       monthOverloadSummary.innerHTML = `<span class="muted">No overload detected for this month (based on FTE assignments).</span>`;
     }
+
+    // si hay persona seleccionada, refrescamos su tabla (por si cambia el año implícitamente)
+    if (personSelect.value){
+      renderPersonLoad();
+    }
   }
 
-   function showProjectStaffing(projectId){
+  function showProjectStaffing(projectId){
     const project = projects.find(p => p.id === projectId);
     if (!project){
       projectRolesContainer.innerHTML = '<div class="muted">Project not found.</div>';
       return;
     }
 
-    // roles específicos del proyecto, o plantilla estándar si no hay
     let rolesForProject = projectRoles.filter(r => r.project_id === projectId);
     if (!rolesForProject.length){
       rolesForProject = projectRoleStandard.map(r => ({
@@ -1019,7 +1078,6 @@
         a.project_id === projectId && a.role_name === roleName
       );
 
-      // 🔹 chips con botón “x” para desasignar
       let assignedHtml;
       if (!assignedThisRole.length){
         assignedHtml = '<span class="muted">Assigned:</span> No one assigned';
@@ -1076,7 +1134,6 @@
 
     projectRolesContainer.innerHTML = html;
 
-    // listeners de botones Assign
     projectRolesContainer.querySelectorAll(".assign-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
         const projectId = btn.dataset.project;
@@ -1086,17 +1143,15 @@
       });
     });
 
-    // 👉 NUEVO: listeners para Unassign
     projectRolesContainer.querySelectorAll(".unassign-btn").forEach(btn => {
       btn.addEventListener("click", async (ev) => {
-        ev.stopPropagation(); // por si acaso
+        ev.stopPropagation();
         const assignmentId = btn.dataset.assignmentId;
         const projectId = btn.dataset.projectId;
         await handleUnassignClick(assignmentId, projectId);
       });
     });
   }
-
 
   async function handleAssignClick(projectId, roleName, selectId){
     const selectEl = document.getElementById(selectId);
@@ -1116,7 +1171,6 @@
       return;
     }
 
-    // 🔹 Fechas del proyecto: usamos todo el rango del proyecto
     const pa  = parseDate(project.permitting_approval_date);
     const tpd = parseDate(project.tender_package_design_date);
     const fs  = parseDate(project.financing_signing_date);
@@ -1126,30 +1180,27 @@
 
     const allDates = [pa,tpd,fs,cs,mc,pac].filter(Boolean).sort((a,b) => a-b);
 
-    // helpers para pasar Date -> "YYYY-MM-DD"
     const toDateStr = (d) =>
       `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 
     let startDate, endDate;
     if (allDates.length){
-      startDate = toDateStr(allDates[0]);                  // primer hito
-      endDate   = toDateStr(allDates[allDates.length-1]);  // último hito
+      startDate = toDateStr(allDates[0]);
+      endDate   = toDateStr(allDates[allDates.length-1]);
     } else {
-      // fallback por si algún proyecto no tiene fechas bien cargadas
       const today = new Date();
       startDate = toDateStr(today);
       endDate   = toDateStr(today);
     }
 
-    // 🔹 Elegimos un stage "de proyecto" (primera etapa definida)
-    let stageValue = "eng_perm"; // valor por defecto válido del enum
+    let stageValue = "eng_perm";
     const stages = getProjectStages(project);
     if (stages.length){
-      stageValue = stages[0].stage; // ej. eng_perm
+      stageValue = stages[0].stage;
     }
 
     const payload = {
-      id: crypto.randomUUID(),   // por si id es NOT NULL
+      id: crypto.randomUUID(),
       project_id: projectId,
       person_id: personId,
       role_name: roleName,
@@ -1171,15 +1222,16 @@
       return;
     }
 
-    // Añadimos en memoria y refrescamos vistas
     assignments.push(data);
-
-    // volvemos a pintar staffing y resumen del mes actual
     showProjectStaffing(projectId);
     if (currentMonthKey){
       showMonthDetail(currentMonthKey);
     }
+    if (personSelect.value){
+      renderPersonLoad();
+    }
   }
+
   async function handleUnassignClick(assignmentId, projectId){
     if (!assignmentId) return;
 
@@ -1194,23 +1246,134 @@
       return;
     }
 
-    // quitar de memoria
     assignments = assignments.filter(a => a.id !== assignmentId);
 
-    // refrescar panel de proyecto y resumen mensual
     showProjectStaffing(projectId);
     if (currentMonthKey){
       showMonthDetail(currentMonthKey);
     }
+    if (personSelect.value){
+      renderPersonLoad();
+    }
   }
 
+  function renderPersonLoad(){
+    const personId = personSelect.value;
+    if (!personId){
+      personLoadContainer.innerHTML = '<div class="muted">Select a person to see their load.</div>';
+      return;
+    }
+    const person = people.find(p => p.id === personId);
+    if (!person){
+      personLoadContainer.innerHTML = '<div class="muted">Person not found.</div>';
+      return;
+    }
 
+    let year;
+    if (yearFilter.value !== "all"){
+      year = Number(yearFilter.value);
+    } else if (currentMonthKey){
+      year = Number(currentMonthKey.split("-")[0]);
+    } else {
+      year = new Date().getFullYear();
+    }
+
+    const projectById = {};
+    for (const p of projects){
+      projectById[p.id] = p;
+    }
+
+    const rc = roles.find(r => r.role_name === (person.role_name || ""));
+    const capProjects = rc && rc.max_project_allocation != null
+      ? Number(rc.max_project_allocation)
+      : 3;
+
+    const monthData = [];
+    for (let m = 0; m < 12; m++){
+      const monthStart = new Date(year, m, 1);
+      const monthEnd   = new Date(year, m+1, 1);
+      const projSet = new Set();
+      let totalMw = 0;
+
+      for (const a of assignments){
+        if (a.person_id !== personId) continue;
+        const aStart = parseDate(a.start_date);
+        const aEnd   = a.end_date ? parseDate(a.end_date) : null;
+        if (!aStart) continue;
+
+        const overlaps =
+          aStart < monthEnd &&
+          (!aEnd || aEnd >= monthStart);
+
+        if (!overlaps) continue;
+
+        projSet.add(a.project_id);
+
+        const proj = projectById[a.project_id];
+        if (proj){
+          const mwPv = Number(proj.mw_pv || 0);
+          const mwBess = Number(proj.mw_bess || 0);
+          const fte = Number(a.fte_on_project || 0) || 1;
+          totalMw += (mwPv + mwBess) * fte;
+        }
+      }
+
+      monthData.push({
+        projects: projSet.size,
+        mw: totalMw
+      });
+    }
+
+    let headCells = "<th>Metric</th>";
+    for (let m = 0; m < 12; m++){
+      const d = new Date(year, m, 1);
+      headCells += `<th>${d.toLocaleDateString("en-GB",{month:"short"})}</th>`;
+    }
+
+    let projectsRow = "<tr><td>Projects</td>";
+    let mwRow       = "<tr><td>MW (weighted)</td>";
+
+    for (let m = 0; m < 12; m++){
+      const data = monthData[m];
+      const proj = data.projects;
+      const mw   = data.mw;
+      let cls = "load-ok";
+      if (proj > capProjects) cls = "load-over";
+      else if (capProjects - proj <= 1) cls = "load-near";
+
+      projectsRow += `<td class="${cls}">${proj}</td>`;
+      mwRow       += `<td class="${cls}">${mw.toFixed(1)}</td>`;
+    }
+    projectsRow += "</tr>";
+    mwRow       += "</tr>";
+
+    const tableHtml = `
+      <div class="muted" style="margin-top:4px;">
+        Load for <strong>${person.full_name || ""}</strong> – role: ${person.role_name || "n/a"},
+        capacity ~${capProjects} project(s)/month (from roles_capacity.max_project_allocation).
+        Cells in <span class="load-ok">green</span> are at/below capacity, <span class="load-near">yellow</span> are at -1 project from capacity,
+        and <span class="load-over">red</span> exceed capacity.
+      </div>
+      <table class="person-load-table">
+        <thead><tr>${headCells}</tr></thead>
+        <tbody>
+          ${projectsRow}
+          ${mwRow}
+        </tbody>
+      </table>
+    `;
+
+    personLoadContainer.innerHTML = tableHtml;
+  }
 
   // eventos filtros
   [regionFilter, countryFilter, techFilter, yearFilter].forEach(el => {
     el.addEventListener("change", () => {
       renderSummary();
       buildAndRenderMonthly();
+      if (personSelect.value){
+        renderPersonLoad();
+      }
     });
   });
 
@@ -1221,6 +1384,10 @@
       return;
     }
     showProjectStaffing(projectId);
+  });
+
+  personSelect.addEventListener("change", () => {
+    renderPersonLoad();
   });
 
   refreshBtn.addEventListener("click", loadData);
